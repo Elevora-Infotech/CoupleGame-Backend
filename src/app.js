@@ -28,9 +28,19 @@ app.get('/health', (req, res) => {
 });
 
 const authRoutes = require('./routes/authRoutes');
+const profileRoutes = require('./routes/profileRoutes');
+const questionnaireRoutes = require('./routes/questionnaireRoutes');
+const adminAuthRoutes = require('./routes/adminAuthRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 // Setup Routes
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/profile', profileRoutes);
+app.use('/api/v1/questionnaire', questionnaireRoutes);
+
+// Admin Routes (Isolated)
+app.use('/api/v1/admin/auth', adminAuthRoutes);
+app.use('/api/v1/admin', adminRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
