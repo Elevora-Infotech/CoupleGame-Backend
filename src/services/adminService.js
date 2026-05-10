@@ -60,7 +60,93 @@ const createQuestion = async (questionData) => {
   return question;
 };
 
+/**
+ * Admin: Card Categories Management
+ */
+const createCategory = async (data) => {
+  const { name, description, theme_color, icon_url, order_index } = data;
+  const { data: category, error } = await supabase
+    .from('card_categories')
+    .insert([{ name, description, theme_color, icon_url, order_index }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return category;
+};
+
+const updateCategory = async (id, data) => {
+  const { name, description, theme_color, icon_url, order_index, is_active } = data;
+  const { data: category, error } = await supabase
+    .from('card_categories')
+    .update({ name, description, theme_color, icon_url, order_index, is_active })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return category;
+};
+
+const softDeleteCategory = async (id) => {
+  const { data, error } = await supabase
+    .from('card_categories')
+    .update({ is_active: false })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+/**
+ * Admin: Cards Management
+ */
+const createCard = async (data) => {
+  const { category_id, name, power_description, image_url, attributes, card_type } = data;
+  const { data: card, error } = await supabase
+    .from('cards')
+    .insert([{ category_id, name, power_description, image_url, attributes, card_type }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return card;
+};
+
+const updateCard = async (id, data) => {
+  const { category_id, name, power_description, image_url, attributes, card_type, is_active } = data;
+  const { data: card, error } = await supabase
+    .from('cards')
+    .update({ category_id, name, power_description, image_url, attributes, card_type, is_active })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return card;
+};
+
+const softDeleteCard = async (id) => {
+  const { data, error } = await supabase
+    .from('cards')
+    .update({ is_active: false })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
 module.exports = {
   getStats,
-  createQuestion
+  createQuestion,
+  createCategory,
+  updateCategory,
+  softDeleteCategory,
+  createCard,
+  updateCard,
+  softDeleteCard
 };

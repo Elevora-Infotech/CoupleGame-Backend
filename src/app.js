@@ -33,12 +33,14 @@ const questionnaireRoutes = require('./routes/questionnaireRoutes');
 const adminAuthRoutes = require('./routes/adminAuthRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const roomRoutes = require('./routes/roomRoutes');
+const cardRoutes = require('./routes/cardRoutes');
 
 // Setup Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/profile', profileRoutes);
 app.use('/api/v1/questionnaire', questionnaireRoutes);
 app.use('/api/v1/rooms', roomRoutes);
+app.use('/api/v1/cards', cardRoutes);
 
 // Admin Routes (Isolated)
 app.use('/api/v1/admin/auth', adminAuthRoutes);
