@@ -2,7 +2,7 @@ const axios = require('axios');
 const chalk = require('chalk');
 const { io } = require('socket.io-client');
 
-const BASE_URL = 'http://localhost:3000/api/v1';
+const BASE_URL = 'http://54.91.119.137:3000/api/v1';
 
 async function testRooms() {
     console.log(chalk.bold.blue('\n🏠 STARTING ROOM API JOURNEY...\n'));
@@ -48,7 +48,7 @@ async function testRooms() {
         console.log(chalk.yellow('Step 6: Testing Socket Connection with JWT...'));
 
         await new Promise((resolve, reject) => {
-            const socket = io('http://localhost:3000', {
+            const socket = io('http://54.91.119.137:3000', {
                 auth: { token: hostToken }
             });
 

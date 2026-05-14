@@ -42,6 +42,27 @@ const createNewQuestion = async (req, res, next) => {
   }
 };
 
+const getAllQuestions = async (req, res, next) => {
+  try {
+    const questions = await adminService.getAllQuestions();
+    res.status(200).json({ status: 'success', data: { questions } });
+  } catch (error) { next(error); }
+};
+
+const updateQuestion = async (req, res, next) => {
+  try {
+    const question = await adminService.updateQuestion(req.params.id, req.body);
+    res.status(200).json({ status: 'success', data: { question } });
+  } catch (error) { next(error); }
+};
+
+const deleteQuestion = async (req, res, next) => {
+  try {
+    const question = await adminService.softDeleteQuestion(req.params.id);
+    res.status(200).json({ status: 'success', message: 'Question soft-deleted successfully', data: { question } });
+  } catch (error) { next(error); }
+};
+
 const createCardCategory = async (req, res, next) => {
   try {
     const category = await adminService.createCategory(req.body);
@@ -87,6 +108,9 @@ const deleteCard = async (req, res, next) => {
 module.exports = {
   getDashboardStats,
   createNewQuestion,
+  getAllQuestions,
+  updateQuestion,
+  deleteQuestion,
   createCardCategory,
   updateCardCategory,
   deleteCardCategory,

@@ -1,7 +1,7 @@
 const axios = require('axios');
 const chalk = require('chalk');
 
-const BASE_URL = 'http://localhost:3000/api/v1';
+const BASE_URL = 'http://54.91.119.137:3000/api/v1';
 
 // Same User Credentials from the Questionnaire test
 const USER_CREDENTIALS = {

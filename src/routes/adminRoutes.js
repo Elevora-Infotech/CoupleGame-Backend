@@ -11,11 +11,17 @@ const { adminProtect } = require('../middlewares/adminMiddleware');
 router.get('/dashboard/stats', adminProtect, adminController.getDashboardStats);
 
 /**
+ * @route GET /api/v1/admin/dashboard/questions
  * @route POST /api/v1/admin/dashboard/questions
- * @desc Create a new question + options
+ * @route PUT /api/v1/admin/dashboard/questions/:id
+ * @route DELETE /api/v1/admin/dashboard/questions/:id
+ * @desc Admin Questionnaire CRUD
  * @access Private (Admin Only)
  */
+router.get('/dashboard/questions', adminProtect, adminController.getAllQuestions);
 router.post('/dashboard/questions', adminProtect, adminController.createNewQuestion);
+router.put('/dashboard/questions/:id', adminProtect, adminController.updateQuestion);
+router.delete('/dashboard/questions/:id', adminProtect, adminController.deleteQuestion);
 
 /**
  * @route POST /api/v1/admin/dashboard/categories

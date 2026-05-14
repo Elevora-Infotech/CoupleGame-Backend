@@ -60,6 +60,40 @@ const createQuestion = async (questionData) => {
   return question;
 };
 
+const getAllQuestions = async () => {
+  const { data, error } = await supabase
+    .from('questions')
+    .select('*, options:question_options(*)');
+
+  if (error) throw error;
+  return data;
+};
+
+const updateQuestion = async (id, data) => {
+  const { text, input_type, is_active } = data;
+  const { data: question, error } = await supabase
+    .from('questions')
+    .update({ text, input_type, is_active })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return question;
+};
+
+const softDeleteQuestion = async (id) => {
+  const { data, error } = await supabase
+    .from('questions')
+    .update({ is_active: false })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
 /**
  * Admin: Card Categories Management
  */
@@ -143,6 +177,9 @@ const softDeleteCard = async (id) => {
 module.exports = {
   getStats,
   createQuestion,
+  getAllQuestions,
+  updateQuestion,
+  softDeleteQuestion,
   createCategory,
   updateCategory,
   softDeleteCategory,
