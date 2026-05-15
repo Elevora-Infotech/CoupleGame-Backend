@@ -24,23 +24,21 @@ router.put('/dashboard/questions/:id', adminProtect, adminController.updateQuest
 router.delete('/dashboard/questions/:id', adminProtect, adminController.deleteQuestion);
 
 /**
- * @route POST /api/v1/admin/dashboard/categories
- * @route PUT /api/v1/admin/dashboard/categories/:id
- * @route DELETE /api/v1/admin/dashboard/categories/:id
- * @desc Admin Card Categories CRUD
+ * @route GET /api/v1/admin/dashboard/categories
+ * @desc  Get all card categories (lightweight list for admin panel)
  * @access Private (Admin Only)
  */
+router.get('/dashboard/categories', adminProtect, adminController.getAllCategories);
 router.post('/dashboard/categories', adminProtect, adminController.createCardCategory);
 router.put('/dashboard/categories/:id', adminProtect, adminController.updateCardCategory);
 router.delete('/dashboard/categories/:id', adminProtect, adminController.deleteCardCategory);
 
 /**
- * @route POST /api/v1/admin/dashboard/cards
- * @route PUT /api/v1/admin/dashboard/cards/:id
- * @route DELETE /api/v1/admin/dashboard/cards/:id
- * @desc Admin Cards CRUD
+ * @route GET /api/v1/admin/dashboard/cards
+ * @desc  Get all cards with category info (lightweight list for bundle card picker)
  * @access Private (Admin Only)
  */
+router.get('/dashboard/cards', adminProtect, adminController.getAllCards);
 router.post('/dashboard/cards', adminProtect, adminController.createCard);
 router.put('/dashboard/cards/:id', adminProtect, adminController.updateCard);
 router.delete('/dashboard/cards/:id', adminProtect, adminController.deleteCard);

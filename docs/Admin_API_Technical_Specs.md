@@ -129,3 +129,152 @@ curl --location --request POST 'http://localhost:3000/api/v1/admin/dashboard/que
 --header 'Content-Type: application/json' \
 --data-raw '{ "text": "New Q?", "input_type": "SINGLE_CHOICE", "options": ["A", "B"] }'
 ```
+
+---
+
+## GET | /admin/dashboard/categories | GET_ALL_CATEGORIES
+
+### 1. Context
+Lightweight endpoint. Returns the full list of card categories for the admin panel's category management table and dropdown selectors.
+
+### 2. Security/Auth
+*   **Auth Type**: ADMIN_JWT. **RBAC**: Admin only.
+
+### 6. The Success Contract (200 OK)
+```json
+{
+  "status": "success",
+  "data": {
+    "categories": [
+      { "id": "uuid", "name": "Romance & Intimacy", "theme_color": "#D0021B", "is_active": true, "order_index": 0 }
+    ]
+  }
+}
+```
+
+### 10. cURL Snippet
+```bash
+curl --location 'http://localhost:3000/api/v1/admin/dashboard/categories' \
+--header 'Authorization: Bearer {{ADMIN_TOKEN}}'
+```
+
+---
+
+## GET | /admin/dashboard/cards | GET_ALL_CARDS
+
+### 1. Context
+Lightweight endpoint. Returns all cards with their parent category name and theme colour. Used in the admin bundle card-picker screen to let the admin choose which cards to add to a bundle.
+
+### 2. Security/Auth
+*   **Auth Type**: ADMIN_JWT. **RBAC**: Admin only.
+
+### 6. The Success Contract (200 OK)
+```json
+{
+  "status": "success",
+  "data": {
+    "cards": [
+      {
+        "id": "uuid",
+        "name": "Slow-Mo Kiss",
+        "card_type": "ACTION",
+        "is_active": true,
+        "card_categories": { "id": "uuid", "name": "Romance & Intimacy", "theme_color": "#D0021B" }
+      }
+    ]
+  }
+}
+```
+
+### 10. cURL Snippet
+```bash
+curl --location 'http://localhost:3000/api/v1/admin/dashboard/cards' \
+--header 'Authorization: Bearer {{ADMIN_TOKEN}}'
+```
+
+---
+
+## GET | /admin/bundles/:id/plans | GET_BUNDLE_PLANS
+
+### 1. Context
+Lightweight endpoint. Fetches **only** the pricing plans for a specific bundle without loading any card data. Used by the admin Plans management screen.
+
+### 2. Security/Auth
+*   **Auth Type**: ADMIN_JWT. **RBAC**: Admin only.
+
+### 6. The Success Contract (200 OK)
+```json
+{
+  "status": "success",
+  "data": {
+    "plans": [
+      { "id": "uuid", "name": "Starter", "price": 10.00, "card_count": 5, "is_active": true }
+    ]
+  }
+}
+```
+
+### 10. cURL Snippet
+```bash
+curl --location 'http://localhost:3000/api/v1/admin/bundles/{{BUNDLE_ID}}/plans' \
+--header 'Authorization: Bearer {{ADMIN_TOKEN}}'
+```
+
+---
+
+## GET | /admin/bundles/:id/cards | GET_BUNDLE_CARDS
+
+### 1. Context
+Lightweight endpoint. Fetches **only** the cards currently inside a specific bundle without loading plan data. Used by the admin Cards-in-Bundle management screen.
+
+### 2. Security/Auth
+*   **Auth Type**: ADMIN_JWT. **RBAC**: Admin only.
+
+### 6. The Success Contract (200 OK)
+```json
+{
+  "status": "success",
+  "data": {
+    "cards": [
+      { "id": "uuid", "name": "Slow-Mo Kiss", "card_type": "ACTION", "bundle_card_id": "uuid", "added_at": "2026-05-15T..." }
+    ]
+  }
+}
+```
+
+### 10. cURL Snippet
+```bash
+curl --location 'http://localhost:3000/api/v1/admin/bundles/{{BUNDLE_ID}}/cards' \
+--header 'Authorization: Bearer {{ADMIN_TOKEN}}'
+```
+
+---
+
+## GET | /admin/plans/:planId | GET_SINGLE_PLAN
+
+### 1. Context
+Fetches a single pricing plan by its ID. Used to pre-fill the "Edit Plan" form in the admin panel.
+
+### 2. Security/Auth
+*   **Auth Type**: ADMIN_JWT. **RBAC**: Admin only.
+
+### 6. The Success Contract (200 OK)
+```json
+{
+  "status": "success",
+  "data": {
+    "plan": { "id": "uuid", "bundle_id": "uuid", "name": "Starter", "price": 10.00, "card_count": 5, "is_active": true }
+  }
+}
+```
+
+### 7. The Error Contract
+| HTTP Code | Message | Suggested Action |
+| :--- | :--- | :--- |
+| 404 | `Plan not found.` | Check if the planId is correct. |
+
+### 10. cURL Snippet
+```bash
+curl --location 'http://localhost:3000/api/v1/admin/plans/{{PLAN_ID}}' \
+--header 'Authorization: Bearer {{ADMIN_TOKEN}}'
+```

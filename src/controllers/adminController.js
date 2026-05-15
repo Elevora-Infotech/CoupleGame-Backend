@@ -105,6 +105,44 @@ const deleteCard = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+
+// ── Lightweight Read-Only Controllers ────────────────────────────────────
+
+const getAllCategories = async (req, res, next) => {
+  try {
+    const categories = await adminService.getAllCategories();
+    res.status(200).json({ status: 'success', data: { categories } });
+  } catch (error) { next(error); }
+};
+
+const getAllCards = async (req, res, next) => {
+  try {
+    const cards = await adminService.getAllCards();
+    res.status(200).json({ status: 'success', data: { cards } });
+  } catch (error) { next(error); }
+};
+
+const getBundlePlans = async (req, res, next) => {
+  try {
+    const plans = await adminService.getBundlePlans(req.params.id);
+    res.status(200).json({ status: 'success', data: { plans } });
+  } catch (error) { next(error); }
+};
+
+const getBundleCards = async (req, res, next) => {
+  try {
+    const cards = await adminService.getBundleCards(req.params.id);
+    res.status(200).json({ status: 'success', data: { cards } });
+  } catch (error) { next(error); }
+};
+
+const getPlanById = async (req, res, next) => {
+  try {
+    const plan = await adminService.getPlanById(req.params.planId);
+    res.status(200).json({ status: 'success', data: { plan } });
+  } catch (error) { next(error); }
+};
+
 module.exports = {
   getDashboardStats,
   createNewQuestion,
@@ -112,9 +150,15 @@ module.exports = {
   updateQuestion,
   deleteQuestion,
   createCardCategory,
+  getAllCategories,
   updateCardCategory,
   deleteCardCategory,
   createCard,
+  getAllCards,
   updateCard,
-  deleteCard
+  deleteCard,
+  getBundlePlans,
+  getBundleCards,
+  getPlanById,
 };
+

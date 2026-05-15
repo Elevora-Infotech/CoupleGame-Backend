@@ -34,6 +34,8 @@ const adminAuthRoutes = require('./routes/adminAuthRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const cardRoutes = require('./routes/cardRoutes');
+const bundleAdminRoutes = require('./routes/bundleAdminRoutes');
+const storeRoutes = require('./routes/storeRoutes');
 
 // Setup Routes
 app.use('/api/v1/auth', authRoutes);
@@ -41,10 +43,12 @@ app.use('/api/v1/profile', profileRoutes);
 app.use('/api/v1/questionnaire', questionnaireRoutes);
 app.use('/api/v1/rooms', roomRoutes);
 app.use('/api/v1/cards', cardRoutes);
+app.use('/api/v1/store', storeRoutes);
 
 // Admin Routes (Isolated)
 app.use('/api/v1/admin/auth', adminAuthRoutes);
 app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/admin', bundleAdminRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {

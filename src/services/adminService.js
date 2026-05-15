@@ -174,6 +174,77 @@ const softDeleteCard = async (id) => {
   return data;
 };
 
+/**
+ * Admin: Get all card categories (lightweight list)
+ */
+const getAllCategories = async () => {
+  const { data, error } = await supabase
+    .from('card_categories')
+    .select('id, name, description, theme_color, icon_url, order_index, is_active, created_at')
+    .order('order_index', { ascending: true });
+
+  if (error) throw error;
+  return data;
+};
+
+/**
+ * Admin: Get all cards with their category name (for bundle card picker)
+ */
+const getAllCards = async () => {
+  const { data, error } = await supabase
+    .from('cards')
+    .select('id, name, card_type, power_description, is_active, card_categories(id, name, theme_color)')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data;
+};
+
+/**
+ * Admin: Get just the pricing plans for one bundle (lightweight — no cards)
+ */
+const getBundlePlans = async (bundleId) => {
+  const { data, error } = await supabase
+    .from('bundle_plans')
+    .select('id, name, price, card_count, is_active, created_at')
+    .eq('bundle_id', bundleId)
+    .order('price', { ascending: true });
+
+  if (error) throw error;
+  return data;
+};
+
+/**
+ * Admin: Get just the cards inside one bundle (lightweight — no plans)
+ */
+const getBundleCards = async (bundleId) => {
+  const { data, error } = await supabase
+    .from('bundle_cards')
+    .select('id, added_at, cards(id, name, card_type, power_description, is_active, card_categories(name, theme_color))')
+    .eq('bundle_id', bundleId);
+
+  if (error) throw error;
+  return data.map((bc) => ({ bundle_card_id: bc.id, added_at: bc.added_at, ...bc.cards }));
+};
+
+/**
+ * Admin: Get a single pricing plan by ID (for pre-filling the edit form)
+ */
+const getPlanById = async (planId) => {
+  const { data, error } = await supabase
+    .from('bundle_plans')
+    .select('id, bundle_id, name, price, card_count, is_active, created_at')
+    .eq('id', planId)
+    .single();
+
+  if (error) {
+    const err = new Error('Plan not found.');
+    err.status = 404;
+    throw err;
+  }
+  return data;
+};
+
 module.exports = {
   getStats,
   createQuestion,
@@ -181,9 +252,14 @@ module.exports = {
   updateQuestion,
   softDeleteQuestion,
   createCategory,
+  getAllCategories,
   updateCategory,
   softDeleteCategory,
   createCard,
+  getAllCards,
   updateCard,
-  softDeleteCard
+  softDeleteCard,
+  getBundlePlans,
+  getBundleCards,
+  getPlanById,
 };
