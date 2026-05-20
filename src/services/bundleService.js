@@ -197,12 +197,29 @@ const removeCardFromBundle = async (bundleId, cardId) => {
 
 /**
  * Create a pricing plan for a bundle.
+ * AUTO-GENERATES store_product_id and saves to store_products for both
+ * iOS and Android so admin never has to map products manually.
  * @param {string} bundleId - UUID
  * @param {object} data     - { name, price, card_count }
  */
 const createBundlePlan = async (bundleId, data) => {
   const { name, price, card_count } = data;
 
+  // Fetch bundle name for ID generation
+  const { data: bundle, error: bundleErr } = await supabase
+    .from('bundles')
+    .select('name')
+    .eq('id', bundleId)
+    .single();
+
+  if (bundleErr || !bundle) throwError('Bundle not found.', 404);
+
+  // Auto-generate the store product ID
+  const slugify = (str) => str.toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  const storeProductId = `elevora.${slugify(bundle.name)}.${slugify(name)}`;
+
+  // Create the plan
   const { data: plan, error } = await supabase
     .from('bundle_plans')
     .insert([{ bundle_id: bundleId, name, price, card_count }])
@@ -210,8 +227,16 @@ const createBundlePlan = async (bundleId, data) => {
     .single();
 
   if (error) throwError(error.message, 400);
-  return plan;
+
+  // Auto-save store product mappings for BOTH platforms
+  await supabase.from('store_products').insert([
+    { plan_id: plan.id, platform: 'ios',     store_product_id: storeProductId },
+    { plan_id: plan.id, platform: 'android', store_product_id: storeProductId },
+  ]);
+
+  return { ...plan, store_product_id: storeProductId };
 };
+
 
 /**
  * Update a pricing plan (name, price, card_count, is_active).
@@ -269,21 +294,22 @@ const getStoreBundles = async () => {
 };
 
 /**
- * Return one active bundle with its full card list and active plans.
+ * Return one active bundle — plans always included.
+ * Cards are included ONLY if bundle.show_cards_in_store = true.
  * @param {string} bundleId - UUID
  */
 const getStoreBundleById = async (bundleId) => {
-  // First, confirm the bundle is active
+  // Fetch bundle + the show_cards_in_store flag
   const { data: bundle, error: bundleErr } = await supabase
     .from('bundles')
-    .select('id, name, description, cover_image_url, created_at')
+    .select('id, name, description, cover_image_url, show_cards_in_store, created_at')
     .eq('id', bundleId)
     .eq('is_active', true)
     .single();
 
   if (bundleErr || !bundle) throwError('Bundle not found or unavailable.', 404);
 
-  // Fetch the active plans
+  // Always fetch active plans
   const { data: plans, error: planErr } = await supabase
     .from('bundle_plans')
     .select('id, name, price, card_count')
@@ -293,27 +319,38 @@ const getStoreBundleById = async (bundleId) => {
 
   if (planErr) throwError(planErr.message, 400);
 
-  // Fetch all cards inside the bundle (join through bundle_cards)
-  const { data: bundleCards, error: cardErr } = await supabase
+  // Fetch card count for display (always show total count)
+  const { count: totalCards } = await supabase
     .from('bundle_cards')
-    .select(`
-      cards (
-        id,
-        name,
-        card_type,
-        power_description,
-        image_url,
-        card_categories ( name, theme_color )
-      )
-    `)
+    .select('*', { count: 'exact', head: true })
     .eq('bundle_id', bundleId);
 
-  if (cardErr) throwError(cardErr.message, 400);
+  // Only include card list if admin has enabled the flag for this bundle
+  let cards = [];
+  if (bundle.show_cards_in_store) {
+    const { data: bundleCards, error: cardErr } = await supabase
+      .from('bundle_cards')
+      .select(`
+        cards (
+          id, name, card_type, power_description, image_url,
+          card_categories ( name, theme_color )
+        )
+      `)
+      .eq('bundle_id', bundleId);
 
-  const cards = bundleCards.map((bc) => bc.cards).filter(Boolean);
+    if (!cardErr) cards = bundleCards.map((bc) => bc.cards).filter(Boolean);
+  }
 
-  return { ...bundle, total_cards: cards.length, plans, cards };
+  const { show_cards_in_store, ...bundleData } = bundle;
+
+  return {
+    ...bundleData,
+    total_cards: totalCards || 0,
+    plans,
+    ...(bundle.show_cards_in_store && { cards }),
+  };
 };
+
 
 
 module.exports = {
