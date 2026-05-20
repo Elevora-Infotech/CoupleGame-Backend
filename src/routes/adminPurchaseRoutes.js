@@ -9,22 +9,22 @@ router.use(adminProtect);
 
 // ── Purchase Management ───────────────────────────────────────
 /** GET  /admin/purchases           — all purchases (paginated + filtered) */
-router.get('/',                         ctrl.getAllPurchases);
+router.get('/purchases',                         ctrl.getAllPurchases);
 
 /** GET  /admin/purchases/stats      — revenue analytics dashboard */
-router.get('/stats',                    ctrl.getPurchaseStats);
+router.get('/purchases/stats',                    ctrl.getPurchaseStats);
 
 /** GET  /admin/purchases/user/:userId — all purchases by one user */
-router.get('/user/:userId',             ctrl.getPurchasesByUser);
+router.get('/purchases/user/:userId',             ctrl.getPurchasesByUser);
 
 /** GET  /admin/purchases/:purchaseId — one purchase deep detail */
-router.get('/:purchaseId',              ctrl.getPurchaseById);
+router.get('/purchases/:purchaseId',              ctrl.getPurchaseById);
 
 /** POST /admin/purchases/:purchaseId/refund — process refund + revoke cards */
-router.post('/:purchaseId/refund',      ctrl.processRefund);
+router.post('/purchases/:purchaseId/refund',      ctrl.processRefund);
 
 /** POST /admin/purchases/grant-cards — manually grant cards to a user */
-router.post('/grant-cards',             ctrl.grantCards);
+router.post('/purchases/grant-cards',             ctrl.grantCards);
 
 // ── User Deck Audit ───────────────────────────────────────────
 /** GET    /admin/users/:userId/deck           — view user's deck (admin) */
