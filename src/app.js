@@ -46,8 +46,8 @@ app.use('/api/v1/profile',         profileRoutes);
 app.use('/api/v1/questionnaire',   questionnaireRoutes);
 app.use('/api/v1/rooms',           roomRoutes);
 app.use('/api/v1/cards',           cardRoutes);
+app.use('/api/v1/store/purchase',  purchaseRoutes); // ← MUST be before /api/v1/store (webhook has no JWT)
 app.use('/api/v1/store',           storeRoutes);
-app.use('/api/v1/store/purchase',  purchaseRoutes);
 app.use('/api/v1/user/deck',       deckRoutes);
 
 // Admin Routes (Isolated)
