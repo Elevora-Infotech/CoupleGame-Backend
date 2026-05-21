@@ -211,7 +211,24 @@ const getBundlePlans = async (bundleId) => {
     .order('price', { ascending: true });
 
   if (error) throw error;
-  return data;
+
+  // Fetch store_product_id for each plan from store_products table
+  // We pick the 'android' platform row (same string as ios — auto-generated)
+  const planIds = (data || []).map(p => p.id);
+  let productMap = {};
+  if (planIds.length > 0) {
+    const { data: products } = await supabase
+      .from('store_products')
+      .select('plan_id, store_product_id')
+      .in('plan_id', planIds)
+      .eq('platform', 'android');
+    (products || []).forEach(p => { productMap[p.plan_id] = p.store_product_id; });
+  }
+
+  return (data || []).map(plan => ({
+    ...plan,
+    store_product_id: productMap[plan.id] || null,
+  }));
 };
 
 /**
