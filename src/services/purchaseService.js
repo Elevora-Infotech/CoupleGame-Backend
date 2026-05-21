@@ -125,6 +125,22 @@ const processWebhookPurchase = async (webhookBody) => {
 
   const normalizedPlatform = platform === 'APPLE_STORE' ? 'ios' : 'android';
 
+  // ── OPTION B: Room-Only Economy ───────────────────────────
+  // User MUST be inside an ACTIVE room at the time of purchase.
+  // Cards are immediately stamped with that room_id and will
+  // all be destroyed (played or not) when the room ends.
+  const { data: activeRoom, error: roomErr } = await supabase
+    .from('rooms')
+    .select('id')
+    .or(`host_id.eq.${userId},partner_id.eq.${userId}`)
+    .eq('status', 'ACTIVE')
+    .maybeSingle();
+
+  if (roomErr || !activeRoom) {
+    throwError('You must be inside an active game room to purchase cards.', 403);
+  }
+  const activeRoomId = activeRoom.id;
+
   // STEP 1: Check idempotency — already processed?
   const { data: existing } = await supabase
     .from('user_purchases')
@@ -178,12 +194,13 @@ const processWebhookPurchase = async (webhookBody) => {
 
   if (!selectedCardIds.length) throwError('No cards could be selected.', 500);
 
-  // STEP 5: Bulk insert into user_card_deck
+  // STEP 5: Bulk insert into user_card_deck (room_id stamped immediately)
   const deckRows = selectedCardIds.map(cardId => ({
     user_id:     userId,
     card_id:     cardId,
     purchase_id: purchase.id,
     bundle_id:   bundleId,
+    room_id:     activeRoomId,   // ← Option B: locked to active room from birth
   }));
 
   const { error: deckErr } = await supabase

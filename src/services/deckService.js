@@ -35,14 +35,23 @@ const getUserDeck = async (userId) => {
 };
 
 // ─────────────────────────────────────────────────────────────
-// Get Available Cards (unused + not expired)
-// Used for the room card-picker screen before the game starts
+// Get Available Cards for the CURRENT Room (Option B)
+// Strictly returns only cards that:
+//   - belong to this user
+//   - are tied to the exact current room (room_id match)
+//   - have NOT been used yet
+//   - have NOT expired
 // ─────────────────────────────────────────────────────────────
-const getAvailableCards = async (userId) => {
+const getAvailableCards = async (userId, roomId) => {
+  if (!roomId) {
+    throwError('room_id is required to fetch available cards.', 400);
+  }
+
   const { data, error } = await supabase
     .from('v_user_deck_detail')
     .select('*')
     .eq('user_id', userId)
+    .eq('room_id', roomId)     // ← Option B: only cards from THIS room
     .eq('is_used', false)
     .eq('expired', false)
     .eq('is_visible', true)

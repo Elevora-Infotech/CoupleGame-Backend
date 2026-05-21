@@ -10,7 +10,9 @@ const getUserDeck = async (req, res, next) => {
 
 const getAvailableCards = async (req, res, next) => {
   try {
-    const cards = await deckService.getAvailableCards(req.user.id);
+    const { room_id } = req.query;
+    if (!room_id) return res.status(400).json({ status: 'error', message: 'room_id query param is required.' });
+    const cards = await deckService.getAvailableCards(req.user.id, room_id);
     res.status(200).json({ status: 'success', data: { cards, total: cards.length } });
   } catch (error) { next(error); }
 };

@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS public.user_purchases (
 
   -- The user who made the purchase
   user_id          UUID    NOT NULL
-                           REFERENCES auth.users(id)
+                           REFERENCES public.users(id)
                            ON DELETE CASCADE,
 
   -- Which bundle and which plan was purchased
@@ -231,7 +231,7 @@ CREATE TABLE IF NOT EXISTS public.user_card_deck (
 
   -- Owner of this card instance
   user_id      UUID    NOT NULL
-                       REFERENCES auth.users(id)
+                       REFERENCES public.users(id)
                        ON DELETE CASCADE,
 
   -- Which card template this is (points to shared catalog)
@@ -328,9 +328,9 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  -- Only fire when status changes TO a terminal state
-  IF NEW.status IN ('completed', 'expired')
-     AND OLD.status NOT IN ('completed', 'expired') THEN
+  -- Only fire when status changes TO a terminal state (ENUM is uppercase)
+  IF NEW.status IN ('COMPLETED', 'EXPIRED')
+     AND OLD.status NOT IN ('COMPLETED', 'EXPIRED') THEN
 
     UPDATE public.user_card_deck
     SET
@@ -339,8 +339,7 @@ BEGIN
       used_at    = COALESCE(used_at, NOW())
     WHERE
       room_id  = NEW.id
-      AND is_used = TRUE
-      AND expired = FALSE;
+      AND expired = FALSE;  -- Option B: expire ALL cards in room (played OR unplayed)
 
   END IF;
   RETURN NEW;

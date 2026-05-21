@@ -209,9 +209,25 @@ const processRefund = async (purchaseId, adminNote = '') => {
 // Creates a purchase record with amount_paid = 0.00 and
 // runs the same 80/20 algorithm so history stays consistent.
 // ─────────────────────────────────────────────────────────────
-const grantCardsToUser = async ({ user_id, bundle_id, card_count, reason }) => {
+const grantCardsToUser = async ({ user_id, bundle_id, card_count, room_id, reason }) => {
   if (!user_id || !bundle_id || !card_count) {
     throwError('user_id, bundle_id, and card_count are required.', 400);
+  }
+
+  // ── OPTION B: Room-Only Economy ───────────────────────────
+  // A room_id is mandatory for admin grants as well.
+  // Validate the room is still ACTIVE before stamping cards to it.
+  if (!room_id) throwError('room_id is required for Option B (Room-Only Economy).', 400);
+
+  const { data: activeRoom, error: roomErr } = await supabase
+    .from('rooms')
+    .select('id')
+    .eq('id', room_id)
+    .eq('status', 'ACTIVE')
+    .maybeSingle();
+
+  if (roomErr || !activeRoom) {
+    throwError('The provided room_id is not an active room.', 400);
   }
 
   // Validate bundle exists
@@ -230,7 +246,7 @@ const grantCardsToUser = async ({ user_id, bundle_id, card_count, reason }) => {
     .insert([{
       user_id,
       bundle_id,
-      plan_id:          bundle.bundle_plans?.[0]?.id || bundle_id, // use first plan or fallback
+      plan_id:          bundle.bundle_plans?.[0]?.id || bundle_id,
       transaction_id:   transactionId,
       platform:         'manual_grant',
       store_product_id: '',
@@ -249,12 +265,13 @@ const grantCardsToUser = async ({ user_id, bundle_id, card_count, reason }) => {
   const selectedCardIds = await selectCardsForUser(user_id, bundle_id, card_count);
   if (!selectedCardIds.length) throwError('No cards available to grant.', 400);
 
-  // Insert into deck
+  // Insert into deck — stamp room_id immediately (Option B)
   const deckRows = selectedCardIds.map(cardId => ({
     user_id,
     card_id:     cardId,
     purchase_id: purchase.id,
     bundle_id,
+    room_id,     // ← Option B: locked to room from birth
   }));
 
   const { error: deckErr } = await supabase
