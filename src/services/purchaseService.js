@@ -155,7 +155,7 @@ const processWebhookPurchase = async (webhookBody) => {
   // STEP 2: Look up which plan this product maps to
   const { data: product, error: productErr } = await supabase
     .from('store_products')
-    .select('plan_id, bundle_plans(id, card_count, amount_paid, bundle_id)')
+    .select('plan_id, bundle_plans(id, card_count, price, bundle_id)')
     .eq('store_product_id', storeProductId)
     .eq('platform', normalizedPlatform)
     .eq('is_active', true)
@@ -179,7 +179,7 @@ const processWebhookPurchase = async (webhookBody) => {
       transaction_id:   transactionId,
       platform:         normalizedPlatform,
       store_product_id: storeProductId,
-      amount_paid:      amountPaid || plan.amount_paid,
+      amount_paid:      amountPaid || plan.price,
       currency:         currency || 'INR',
       cards_received:   0,
       status:           'pending',

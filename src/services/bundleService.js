@@ -229,10 +229,17 @@ const createBundlePlan = async (bundleId, data) => {
   if (error) throwError(error.message, 400);
 
   // Auto-save store product mappings for BOTH platforms
-  await supabase.from('store_products').insert([
+  // NOTE: We check error here — if this silently fails the webhook
+  // will later return "Unknown product" which is very hard to debug.
+  const { error: spErr } = await supabase.from('store_products').insert([
     { plan_id: plan.id, platform: 'ios',     store_product_id: storeProductId },
     { plan_id: plan.id, platform: 'android', store_product_id: storeProductId },
   ]);
+
+  if (spErr) {
+    console.error('[createBundlePlan] store_products insert failed:', spErr.message);
+    throwError(`Plan created but store product mapping failed: ${spErr.message}`, 500);
+  }
 
   return { ...plan, store_product_id: storeProductId };
 };
