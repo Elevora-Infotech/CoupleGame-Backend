@@ -1,0 +1,23 @@
+# 📊 ELEVORA PHASE 4: EXACT API REFERENCE TABLE
+
+| Model | Sr. | Method | URL | Payload (Request Body) | File Name | Returns (Success JSON Example) | Note | Status Code (Succ/Fail) | Failure Message |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Store** | 1 | GET | `/api/v1/store/bundles` | None | `storeRoutes.js` | `{ "status": "success", "data": { "bundles": [...] } }` | List active bundles with plans | 200 / 400 | `"Error fetching bundles"` |
+| **Store** | 2 | GET | `/api/v1/store/bundles/:id` | None | `storeRoutes.js` | `{ "status": "success", "data": { "bundle": {...} } }` | Single bundle with cards | 200 / 404 | `"Bundle not found"` |
+| **Purchase** | 3 | POST | `/api/v1/store/purchase/verify` | `{ "events": [...] }` | `purchaseRoutes.js` | `{ "status": "success", "data": { "processed": true } }` | RevenueCat Webhook (Runs 80/20 algo) | 200 / 401 | `"Invalid webhook signature"` |
+| **Purchase** | 4 | GET | `/api/v1/store/purchase/history` | None | `purchaseRoutes.js` | `{ "status": "success", "data": { "purchases": [...] } }` | Get user's own purchases | 200 / 401 | `"Unauthorized"` |
+| **User Deck** | 5 | GET | `/api/v1/user/deck` | None | `deckRoutes.js` | `{ "status": "success", "data": { "total": 5, "cards": [...] } }` | All visible user cards | 200 / 401 | `"Unauthorized"` |
+| **User Deck** | 6 | GET | `/api/v1/user/deck/available` | None | `deckRoutes.js` | `{ "status": "success", "data": { "total": 3, "cards": [...] } }` | Only unused, unexpired cards | 200 / 401 | `"Unauthorized"` |
+| **User Deck** | 7 | POST | `/api/v1/user/deck/:id/use` | `{ "room_id": "UUID" }` | `deckRoutes.js` | `{ "status": "success", "data": { "card": {...} } }` | Play card in room (marks is_used) | 200 / 404 | `"Card not found in your deck"` |
+| **Admin Purchase** | 8 | GET | `/api/v1/admin/purchases` | Query: `page, limit, user_id` | `adminPurchaseRoutes.js` | `{ "status": "success", "data": { "purchases": [...] } }` | All purchases globally | 200 / 403 | `"Admin access required"` |
+| **Admin Purchase** | 9 | GET | `/api/v1/admin/purchases/stats` | None | `adminPurchaseRoutes.js` | `{ "status": "success", "data": { "stats": {...} } }` | Revenue analytics | 200 / 403 | `"Admin access required"` |
+| **Admin Purchase** | 10 | GET | `/api/v1/admin/purchases/user/:userId` | None | `adminPurchaseRoutes.js` | `{ "status": "success", "data": { "purchases": [...] } }` | Ledger for single user | 200 / 403 | `"Admin access required"` |
+| **Admin Purchase** | 11 | GET | `/api/v1/admin/purchases/:id` | None | `adminPurchaseRoutes.js` | `{ "status": "success", "data": { "purchase": {...} } }` | Detailed purchase w/ cards | 200 / 404 | `"Purchase not found"` |
+| **Admin Purchase** | 12 | POST | `/api/v1/admin/purchases/:id/refund` | `{ "reason": "Text" }` | `adminPurchaseRoutes.js` | `{ "status": "success", "message": "Refund processed" }` | Refund & revoke unused cards | 200 / 409 | `"Cannot refund"` |
+| **Admin Purchase** | 13 | POST | `/api/v1/admin/purchases/grant-cards`| `{ "user_id", "plan_id", "reason" }` | `adminPurchaseRoutes.js` | `{ "status": "success", "data": { "cards_granted": X } }` | Manual card grant (80/20) | 200 / 400 | `"No cards available to grant"` |
+| **Admin Deck** | 14 | GET | `/api/v1/admin/users/:userId/deck` | None | `adminPurchaseRoutes.js` | `{ "status": "success", "data": { "total": X, "cards": [...] } }` | Audit a user's deck | 200 / 403 | `"Admin access required"` |
+| **Admin Deck** | 15 | DELETE | `/api/v1/admin/users/:userId/deck/:id`| None | `adminPurchaseRoutes.js` | `{ "status": "success", "message": "Card revoked" }` | Hard delete/revoke a card | 200 / 404 | `"Card not found"` |
+| **Admin Product** | 16 | GET | `/api/v1/admin/store-products` | None | `adminPurchaseRoutes.js` | `{ "status": "success", "data": { "products": [...] } }` | List all RevenueCat mappings | 200 / 403 | `"Admin access required"` |
+| **Admin Product** | 17 | POST | `/api/v1/admin/store-products` | `{ "store_product_id", "plan_id", "platform", "is_active" }` | `adminPurchaseRoutes.js` | `{ "status": "success", "data": { "product": {...} } }` | Create product mapping | 201 / 400 | `"Validation Error"` |
+| **Admin Product** | 18 | PUT | `/api/v1/admin/store-products/:id` | `{ "is_active": true }` | `adminPurchaseRoutes.js` | `{ "status": "success", "data": { "product": {...} } }` | Update active status | 200 / 404 | `"Product not found"` |
+| **Admin Product** | 19 | DELETE | `/api/v1/admin/store-products/:id`| None | `adminPurchaseRoutes.js` | `{ "status": "success", "message": "Deleted" }` | Delete mapping | 200 / 404 | `"Product not found"` |
