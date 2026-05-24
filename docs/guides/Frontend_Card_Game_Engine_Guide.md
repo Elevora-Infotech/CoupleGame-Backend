@@ -1,80 +1,96 @@
-# EleVora — Frontend Integration Guide: Card Game Engine
-**Version:** Phase 4 (Card Game Engine Implementation)
-**Audience:** Mobile Frontend Developers (React Native / Flutter / iOS / Android)
+# EleVora — Frontend Developer Guide: Card Game Engine
+**Version:** Phase 4 | Option B Room-Only Card Game Engine
+**Audience:** Mobile Frontend Developer (React Native / Flutter)
 **Base URL:** `https://54.91.119.137/api/v1`
 
 ---
 
 ## 📋 Table of Contents
 
-1. [Introduction & Game Loop](#1-introduction--game-loop)
-2. [Checking Limits Before Actions](#2-checking-limits)
-3. [Card Sends API Reference](#3-card-sends-api-reference)
-4. [Real-time Socket.io Integration](#4-real-time-socketio-integration)
-5. [UI/UX Reference & Components](#5-uiux-reference--components)
-6. [State Management Design (Zustand & Riverpod)](#6-state-management-design)
-7. [Calculated Deadlines & Countdowns](#7-calculated-deadlines--countdowns)
-8. [Edge Cases & Error Handling](#8-edge-cases--error-handling)
+1. [Understanding the Collaborative Card Loop](#1-understanding-the-collaborative-card-loop)
+2. [Managing Daily and Active Card Limits](#2-managing-daily-and-active-card-limits)
+3. [Complete API Lifecycle & Response Schemas](#3-complete-api-lifecycle--response-schemas)
+4. [Real-time Events (Socket.io Connection)](#4-real-time-events-socketio-connection)
+5. [UX Reference, Countdowns, and Deadlines](#5-ux-reference-countdowns-and-deadlines)
+6. [State Management Design (Zustand / Riverpod)](#6-state-management-design-zustand--riverpod)
+7. [Edge Cases & Error Handling Reference](#7-edge-cases--error-handling-reference)
 
 ---
 
-## 1. Introduction & Game Loop
+## 1. Understanding the Collaborative Card Loop
 
-The card game engine extends standard card playing into a collaborative turn-based interaction model. Users do not just play a card locally; they **send it** to their partner with an optional message, which requires acceptance, completion, and validation.
-
-### The Card Engine State Machine
+The Card Game Engine is a collaborative turn-based lifecycle system. Users do not just play a card locally; they **send it** to their partner with an optional message, which requires acceptance, completion, and validation.
 
 ```
-      [SENDER]                            [RECEIVER]
-  
-  Select card from deck
-           │
-           ▼
-     Limit Checks ────────► FAIL (429/400) ──► Show tooltip/lock
-   (Daily/Active OK?)
-           │
-           ▼ PASS
-  POST /:id/send (with msg) ──► Socket: card_received ──► Popup / Notification
-           │
-           ├─── (Receiver deflects card) ────────────────► status: DEFLECTED (Terminated)
-           │
-           ├─── (No action in 24h) ──────────────────────► status: WAITING (Lazy transition)
-           │                                                    │
-           │                                                    └──► (No action in 48h total) ──► PENALTY
-           │
-           ▼ (Receiver accepts)
-    status: IN_PROGRESS
-           │
-           ▼ (Receiver completes action)
-  PATCH /sends/:id/complete ──► Socket: card_completed_by_receiver
-           │
-           ├─── (Receiver reminders sender) ─────────────► Rate-limited 6h nudge
-           │
-           ▼ (Sender confirms)
-   status: COMPLETED ✅ (Terminated)
+       [SENDER]                                           [RECEIVER]
+   Select card from deck
+             │
+             ▼
+   POST /user/deck/:id/send ─────────────────────────► Receives Socket event: 'card_received'
+             │                                                 │
+             │                                                 ▼
+             │                                           Renders Card details
+             │                                           (Option to Accept or Deflect)
+             │                                                 │
+             │                                                 ├────────────────────────┐
+             │                                                 ▼                        ▼
+             │                                           PATCH /.../accept        PATCH /.../deflect
+             │                                        (Moves to IN_PROGRESS)      (Status = DEFLECTED)
+             │                                                 │                        │
+             │                                                 ▼                        ▼
+     Receives Socket:                                     Complete Action          Ends Loop ✅
+     'card_accepted'                                     in real life
+             │                                                 │
+             │                                                 ▼
+             │                                           PATCH /.../complete
+    Receives Socket:                                  (Moves to COMPLETED_BY_RECEIVER)
+    'card_completed_by_receiver'                               │
+             │                                                 │
+             ▼                                                 │
+      Sender Confirms                                          │
+    PATCH /.../confirm ◄───────────────────────────────────────┘
+             │
+             ▼
+    Status = COMPLETED ✅
+    Receives Socket: 'card_confirmed'
 ```
 
-### Business Rules Summary
+### Card Status Reference Table
 
-- **Daily Send Limit:** Max **3 cards** can be sent per user per day. This resets at midnight UTC.
-- **Active Card Limit:** Max **2 active cards** at any time. A card is active if it is in a non-terminal status (`SENT`, `WAITING`, `IN_PROGRESS`, `COMPLETED_BY_RECEIVER`). Terminal statuses are `COMPLETED`, `DEFLECTED`, and `PENALTY`.
-- **Response Window:** The receiver has **24 hours** to accept or deflect a card before it transitions to `WAITING`.
-- **Penalty Window:** If the card remains unacted upon for **48 hours total**, the status becomes `PENALTY`.
+| Status | Terminal? | Meaning |
+|:--|:--|:--|
+| `SENT` | No | Card is sent, waiting for receiver to accept or deflect. |
+| `WAITING` | No | 24 hours have passed without action from the receiver. |
+| `PENALTY` | Yes | 48 hours total have passed without action. Penalty triggered. |
+| `IN_PROGRESS` | No | Receiver accepted card and is completing the task. |
+| `COMPLETED_BY_RECEIVER` | No | Receiver finished task; waiting for sender to confirm. |
+| `COMPLETED` | Yes | Sender confirmed. Card completed successfully! |
+| `DEFLECTED` | Yes | Receiver used a deflect option. Closed with no penalty. |
 
 ---
 
-## 2. Checking Limits
+## 2. Managing Daily and Active Card Limits
 
-Before the user can open the card picker or hit the send action, the frontend should check the daily and active limits to disable buttons or show informative banners.
+To prevent overwhelming users, the backend enforces limits on card creation and play.
 
-### API — Check Send Limits
+### Daily Limit: Max 3 Cards Sent
+A user can send a maximum of **3 cards per calendar day** (resets at midnight UTC). If they try to send a 4th card, the backend returns a `429` error.
+
+### Active Card Limit: Max 2 Cards Active
+A user can only have **2 active (non-terminal) cards at any given time**.
+- Non-terminal statuses: `SENT`, `WAITING`, `IN_PROGRESS`, `COMPLETED_BY_RECEIVER`.
+- Terminal statuses: `COMPLETED`, `DEFLECTED`, `PENALTY`.
+If a user has 2 cards pending confirmation, deflection, or response, they cannot send another card.
+
+### Fetching Limits
+Before rendering the card send interface, fetch the user's active limits:
 
 ```
 GET /user/deck/sends/limits
 Authorization: Bearer <accessToken>
 ```
 
-**Response:**
+**Response Schema:**
 ```json
 {
   "status": "success",
@@ -90,77 +106,26 @@ Authorization: Bearer <accessToken>
 }
 ```
 
-### React Native Integration Example
-
-```javascript
-import React, { useEffect, useState } from 'react';
-import { Button, Text, View, StyleSheet } from 'react-native';
-
-const SendCardActionButton = ({ navigation, api }) => {
-  const [limits, setLimits] = useState(null);
-
-  useEffect(() => {
-    const loadLimits = async () => {
-      try {
-        const res = await api.get('/user/deck/sends/limits');
-        setLimits(res.data.data);
-      } catch (err) {
-        console.error('Failed to load send limits', err);
-      }
-    };
-    loadLimits();
-  }, []);
-
-  if (!limits) return <Text>Loading limits...</Text>;
-
-  const getLimitLabel = () => {
-    if (limits.daily_remaining === 0) {
-      return "Daily Limit Reached (3/3 cards sent today)";
-    }
-    if (limits.active_remaining === 0) {
-      return "2 Active Cards In-Progress. Resolve one first.";
-    }
-    return `Send a Card (${limits.daily_remaining} left today)`;
-  };
-
-  return (
-    <View style={styles.container}>
-      <Button
-        title={getLimitLabel()}
-        disabled={!limits.can_send}
-        onPress={() => navigation.navigate('CardPicker')}
-      />
-      <Text style={styles.subtext}>
-        Active cards: {limits.active_count}/{limits.active_limit}
-      </Text>
-    </View>
-  );
-};
-```
-
 ---
 
-## 3. Card Sends API Reference
+## 3. Complete API Lifecycle & Response Schemas
 
----
-
-### A. Send Card to Partner
-
-Sends a card from the user's available deck with an optional text note. Marks the card as used locally and triggers real-time socket delivery.
+### Step 1: Sender Sends Card
+Sends a card from the deck with an optional text message to the partner.
 
 ```
-POST /user/deck/:deckCardId/send
+POST /api/v1/user/deck/:deckCardId/send
 Authorization: Bearer <accessToken>
 Content-Type: application/json
 
 {
   "room_id": "84c962cf-05d8-4cc3-bcad-195eacd2eeb8",
-  "receiver_id": "user-uuid-of-partner",
-  "message": "Write a sweet note here (max 200 chars)"
+  "receiver_id": "receiver-user-uuid",
+  "message": "Let's grab some ice cream tonight! 🍦"
 }
 ```
 
-**Response (200 OK):**
+**Response Schema:**
 ```json
 {
   "status": "success",
@@ -169,430 +134,179 @@ Content-Type: application/json
     "send": {
       "id": "send-record-uuid",
       "room_id": "84c962cf-05d8-4cc3-bcad-195eacd2eeb8",
-      "sender_id": "your-user-uuid",
-      "receiver_id": "user-uuid-of-partner",
-      "message": "Write a sweet note here (max 200 chars)",
+      "sender_id": "sender-user-uuid",
+      "receiver_id": "receiver-user-uuid",
+      "message": "Let's grab some ice cream tonight! 🍦",
       "status": "SENT",
-      "respond_deadline": "2026-05-25T15:10:00.000Z",
-      "penalty_deadline": "2026-05-26T15:10:00.000Z",
-      "sent_at": "2026-05-24T15:10:00.000Z",
-      "cards": {
-        "id": "card-template-uuid",
-        "name": "Moonlight Walk",
-        "power_description": "Take a moonlit walk together",
-        "card_type": "ACTION",
-        "card_categories": {
-          "name": "Romance",
-          "theme_color": "#FF6B6B"
-        }
-      }
+      "respond_deadline": "2026-05-25T15:00:00.000Z",
+      "penalty_deadline": "2026-05-26T15:00:00.000Z",
+      "sent_at": "2026-05-24T15:00:00.000Z"
     }
   }
 }
 ```
 
----
-
-### B. Mark Card as Seen (Read Receipt)
-
-Call this endpoint as the receiver when opening/viewing a card received from your partner.
+### Step 2: Receiver Marks Card as Seen
+Notify the sender that the card has been opened and read.
 
 ```
-PATCH /user/deck/sends/:sendId/seen
+PATCH /api/v1/user/deck/sends/:sendId/seen
 Authorization: Bearer <accessToken>
 ```
 
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Card marked as seen.",
-  "data": {
-    "send": {
-      "id": "send-record-uuid",
-      "is_seen": true,
-      "seen_at": "2026-05-24T15:15:00.000Z"
-    }
-  }
-}
-```
-
----
-
-### C. Accept Card
-
-The receiver accepts the card, putting it into `IN_PROGRESS` status.
+### Step 3: Receiver Accepts Card
+Moves the card status to `IN_PROGRESS`.
 
 ```
-PATCH /user/deck/sends/:sendId/accept
+PATCH /api/v1/user/deck/sends/:sendId/accept
 Authorization: Bearer <accessToken>
 ```
 
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Card accepted! It is now in progress.",
-  "data": {
-    "send": {
-      "id": "send-record-uuid",
-      "status": "IN_PROGRESS",
-      "accepted_at": "2026-05-24T15:20:00.000Z"
-    }
-  }
-}
-```
-
----
-
-### D. Deflect Card
-
-Receiver deflects the card. This instantly moves the status to `DEFLECTED`, resolving the card with no penalties.
+### Step 4: Receiver Deflects Card (Alternative)
+Receiver declines to perform the card. Closes the card cleanly.
 
 ```
-PATCH /user/deck/sends/:sendId/deflect
+PATCH /api/v1/user/deck/sends/:sendId/deflect
 Authorization: Bearer <accessToken>
 ```
 
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Card deflected.",
-  "data": {
-    "send": {
-      "id": "send-record-uuid",
-      "status": "DEFLECTED",
-      "deflected_at": "2026-05-24T15:21:00.000Z"
-    }
-  }
-}
-```
-
----
-
-### E. Mark Completion (Receiver)
-
-Call this when you (the receiver) have completed the task/action on the card. This pushes the card to `COMPLETED_BY_RECEIVER` where it awaits sender validation.
+### Step 5: Receiver Marks Task as Complete
+Once the real-life task is done, the receiver marks it as completed. Status becomes `COMPLETED_BY_RECEIVER`.
 
 ```
-PATCH /user/deck/sends/:sendId/complete
+PATCH /api/v1/user/deck/sends/:sendId/complete
 Authorization: Bearer <accessToken>
 ```
 
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Marked as complete! Waiting for your partner to confirm.",
-  "data": {
-    "send": {
-      "id": "send-record-uuid",
-      "status": "COMPLETED_BY_RECEIVER",
-      "completed_by_receiver_at": "2026-05-24T18:00:00.000Z"
-    }
-  }
-}
-```
-
----
-
-### F. Confirm Completion (Sender)
-
-The sender confirms the receiver completed the card action. This moves the status to `COMPLETED` (terminal state).
+### Step 6: Sender Confirms Completion
+Sender verifies the card has been completed. Status becomes `COMPLETED` (Terminal).
 
 ```
-PATCH /user/deck/sends/:sendId/confirm
+PATCH /api/v1/user/deck/sends/:sendId/confirm
 Authorization: Bearer <accessToken>
 ```
 
-**Response:**
-```json
-{
-  "status": "success",
-  "message": "Card completed and confirmed! 🎉",
-  "data": {
-    "send": {
-      "id": "send-record-uuid",
-      "status": "COMPLETED",
-      "confirmed_at": "2026-05-24T18:15:00.000Z"
-    }
-  }
-}
-```
-
----
-
-### G. Send Reminder (Receiver to Sender)
-
-Receiver sends a rate-limited nudge to remind the sender to confirm completion.
+### Optional: Receiver Nudges Sender to Confirm
+If the sender has not confirmed, the receiver can send a nudge reminder (rate limited to once every 6 hours).
 
 ```
-POST /user/deck/sends/:sendId/reminder
+POST /api/v1/user/deck/sends/:sendId/reminder
 Authorization: Bearer <accessToken>
 ```
 
-**Response (200 OK):**
-```json
-{
-  "status": "success",
-  "message": "Reminder sent to your partner."
-}
+---
+
+## 4. Real-time Events (Socket.io Connection)
+
+Webhooks and REST calls manage the state database, but Socket.io ensures instantaneous UI transitions.
+
+### Client-Side Socket Listeners
+
+#### Card Received
+Renders a popup or banner notifying the partner a card has arrived.
+```javascript
+socket.on('card_received', (data) => {
+  // data: { send_id, sender_id, receiver_id, room_id, card: { name, power_description }, message, sent_at }
+  showToast(`New Card: ${data.card.name}!`);
+  refreshActiveSendsList();
+});
+```
+
+#### Card Accepted
+Updates the state in the card list to `IN_PROGRESS`.
+```javascript
+socket.on('card_accepted', (data) => {
+  // data: { send_id, receiver_id, accepted_at }
+  updateCardStatus(data.send_id, 'IN_PROGRESS');
+});
+```
+
+#### Card Completed by Receiver
+Prompts the sender with an action button to "Confirm Completion".
+```javascript
+socket.on('card_completed_by_receiver', (data) => {
+  // data: { send_id, receiver_id, completed_by_receiver_at }
+  updateCardStatus(data.send_id, 'COMPLETED_BY_RECEIVER');
+});
+```
+
+#### Card Confirmed
+Closes the loop, plays success animation.
+```javascript
+socket.on('card_confirmed', (data) => {
+  // data: { send_id, sender_id, confirmed_at }
+  updateCardStatus(data.send_id, 'COMPLETED');
+  showSuccessConfetti();
+});
 ```
 
 ---
 
-### H. Get Room Card Send History
+## 5. UX Reference, Countdowns, and Deadlines
 
-Fetches the complete history of sent and received cards in the room.
+Both `respond_deadline` (+24h) and `penalty_deadline` (+48h) are timestamps returned in the API responses.
 
-```
-GET /user/deck/sends?room_id=84c962cf-05d8-4cc3-bcad-195eacd2eeb8
-Authorization: Bearer <accessToken>
-```
+### Calculating Countdowns dynamically:
+```javascript
+function getRemainingTime(deadlineString) {
+  const deadline = new Date(deadlineString).getTime();
+  const now = new Date().getTime();
+  const diff = deadline - now;
 
-**Response:**
-```json
-{
-  "status": "success",
-  "data": {
-    "total": 1,
-    "sends": [
-      {
-        "id": "send-record-uuid",
-        "room_id": "84c962cf-05d8-4cc3-bcad-195eacd2eeb8",
-        "sender_id": "your-user-uuid",
-        "receiver_id": "partner-uuid",
-        "message": "Let's do this!",
-        "status": "IN_PROGRESS",
-        "sent_at": "2026-05-24T15:10:00.000Z",
-        "accepted_at": "2026-05-24T15:20:00.000Z",
-        "reminder_count": 0,
-        "respond_deadline": "2026-05-25T15:10:00.000Z",
-        "penalty_deadline": "2026-05-26T15:10:00.000Z",
-        "cards": {
-          "id": "card-uuid",
-          "name": "Moonlight Walk",
-          "power_description": "Take a moonlit walk together",
-          "card_type": "ACTION",
-          "card_categories": {
-            "name": "Romance",
-            "theme_color": "#FF6B6B"
-          }
-        }
-      }
-    ]
-  }
+  if (diff <= 0) return "Overdue";
+
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+  return `${hours}h ${minutes}m left`;
 }
 ```
 
+### Status Visual Styling Guide:
+
+- **SENT / WAITING**: Show a live ticking clock using `respond_deadline`. Color: Orange/Amber.
+- **IN_PROGRESS**: Show as active. Clock ticks down to the `penalty_deadline`. Color: Purple/Indigo.
+- **COMPLETED_BY_RECEIVER**: Show a glowing checkmark for the receiver: *"Awaiting partner verification"*. Show an action button for the sender: *"Confirm Completion"*.
+- **COMPLETED**: Green badge or card border. Remove action buttons.
+
 ---
 
-## 4. Real-time Socket.io Integration
+## 6. State Management Design (Zustand / Riverpod)
 
-The mobile application should establish a real-time connection using the Socket.io client to listen for events while inside a room.
-
-### Socket Listener Implementation Pattern
+Keep active sends separate from your static deck inventory.
 
 ```javascript
-import io from 'socket.io-client';
+import create from 'zustand';
 
-const setupSocketListeners = (roomId, userToken, onCardEvent) => {
-  const socket = io('https://54.91.119.137', {
-    auth: { token: userToken },
-    transports: ['websocket'],
-  });
-
-  socket.on('connect', () => {
-    console.log('Connected to real-time events.');
-    socket.emit('join_room', roomId);
-  });
-
-  // 1. Listen for incoming cards
-  socket.on('card_received', (payload) => {
-    // payload: { send_id, sender_id, card: {...}, message, sent_at, respond_deadline }
-    onCardEvent('RECEIVED', payload);
-  });
-
-  // 2. Listen for partner read receipts
-  socket.on('card_seen', (payload) => {
-    // payload: { send_id, receiver_id, seen_at }
-    onCardEvent('SEEN', payload);
-  });
-
-  // 3. Listen for acceptance
-  socket.on('card_accepted', (payload) => {
-    // payload: { send_id, receiver_id, accepted_at }
-    onCardEvent('ACCEPTED', payload);
-  });
-
-  // 4. Listen for deflects
-  socket.on('card_deflected', (payload) => {
-    // payload: { send_id, receiver_id, deflected_at }
-    onCardEvent('DEFLECTED', payload);
-  });
-
-  // 5. Listen for receiver completion
-  socket.on('card_completed_by_receiver', (payload) => {
-    // payload: { send_id, receiver_id, completed_by_receiver_at }
-    onCardEvent('COMPLETED_BY_RECEIVER', payload);
-  });
-
-  // 6. Listen for sender confirmation
-  socket.on('card_confirmed', (payload) => {
-    // payload: { send_id, sender_id, confirmed_at }
-    onCardEvent('CONFIRMED', payload);
-  });
-
-  // 7. Listen for nudges/reminders
-  socket.on('card_reminder', (payload) => {
-    // payload: { send_id, receiver_id, message }
-    onCardEvent('REMINDER', payload);
-  });
-
-  return () => {
-    socket.disconnect();
-  };
-};
-```
-
----
-
-## 5. UI/UX Reference & Components
-
-### Received Card Modal
-
-When receiving a `card_received` payload, show a clean modal with:
-1. **Sender Info:** "Your partner sent you a card!"
-2. **Action/Task Title:** The card's name (e.g. "Breakfast in Bed")
-3. **Task Details:** Card's `power_description`
-4. **Message Text:** Render `message` inside a handwritten-style note bubble.
-5. **Countdowns:** Format a countdown timer to show time remaining before the card slips into `WAITING` status.
-6. **Action Triggers:** Dual options to Accept or Deflect.
-
-### List Item Styling per Status
-
-Map the statuses to dynamic UI themes for card list items:
-
-| Status | Theme / Background | Action Button Displayed |
-|:--|:--|:--|
-| `SENT` | Pulse border, light background | Receiver: "Accept" / "Deflect" |
-| `WAITING` | Amber tint / warning icon | Receiver: "Accept" (with warning label) |
-| `PENALTY` | Deep red tint | Disabled, show penalty label |
-| `IN_PROGRESS` | Purple highlight, timer active | Receiver: "Mark Done" |
-| `COMPLETED_BY_RECEIVER` | Grayed out, loader icon | Sender: "Confirm Completion" |
-| `COMPLETED` | Green checkmark, success state | None (terminal) |
-| `DEFLECTED` | Grayed out, broken shield icon | None (terminal) |
-
----
-
-## 6. State Management Design
-
-Using local state updates directly is discouraged. State managers should keep card engine states updated cleanly using optimistic updates.
-
-### Zustand Slice (React Native)
-
-```javascript
-import { create } from 'zustand';
-
-export const useCardEngineStore = create((set, get) => ({
-  sends: [],
+const useCardGameStore = create((set, get) => ({
+  activeSends: [],
   limits: null,
-  isLoading: false,
 
-  fetchSends: async (api, roomId) => {
-    set({ isLoading: true });
+  fetchSends: async (roomId) => {
     const res = await api.get(`/user/deck/sends?room_id=${roomId}`);
-    set({ sends: res.data.data.sends, isLoading: false });
+    set({ activeSends: res.data.data.sends });
   },
 
-  fetchLimits: async (api) => {
+  fetchLimits: async () => {
     const res = await api.get('/user/deck/sends/limits');
     set({ limits: res.data.data });
   },
 
-  sendCardOptimistic: async (api, deckCardId, payload) => {
-    // 1. Cache previous sends
-    const previousSends = get().sends;
-    
-    // 2. Perform optimistic update locally
-    const tempSendRecord = {
-      id: `temp-${Date.now()}`,
-      status: 'SENT',
-      message: payload.message,
-      sent_at: new Date().toISOString(),
-      cards: payload.cardInfo, // pre-loaded card catalog info
-    };
-    
-    set({ sends: [tempSendRecord, ...previousSends] });
-
-    try {
-      const res = await api.post(`/user/deck/${deckCardId}/send`, {
-        room_id: payload.roomId,
-        receiver_id: payload.receiverId,
-        message: payload.message
-      });
-      // Replace temp record with database record
-      set({
-        sends: get().sends.map(s => s.id === tempSendRecord.id ? res.data.data.send : s)
-      });
-      get().fetchLimits(api); // refresh remaining values
-    } catch (err) {
-      // rollback state
-      set({ sends: previousSends });
-      throw err;
-    }
+  optimisticPlay: (deckCardId, details) => {
+    // 1. Move card temporarily into state
+    // 2. Reduce limits locally to avoid lag
   }
 }));
 ```
 
 ---
 
-## 7. Calculated Deadlines & Countdowns
+## 7. Edge Cases & Error Handling Reference
 
-Deadlines return as ISO strings (`respond_deadline` and `penalty_deadline`). The frontend must parse these and display real-time counters.
-
-```javascript
-// React Native CountDown Timer Component
-import React, { useEffect, useState } from 'react';
-import { Text } from 'react-native';
-
-export const CountdownTimer = ({ deadline }) => {
-  const [timeLeft, setTimeLeft] = useState('');
-
-  useEffect(() => {
-    const updateTimer = () => {
-      const difference = new Date(deadline).getTime() - Date.now();
-      if (difference <= 0) {
-        setTimeLeft('Expired');
-        return;
-      }
-
-      const hours = Math.floor(difference / (1000 * 60 * 60));
-      const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((difference % (1000 * 60)) / 1000);
-
-      setTimeLeft(`${hours}h ${minutes}m ${seconds}s`);
-    };
-
-    updateTimer();
-    const interval = setInterval(updateTimer, 1000);
-    return () => clearInterval(interval);
-  }, [deadline]);
-
-  return <Text>{timeLeft}</Text>;
-};
-```
-
----
-
-## 8. Edge Cases & Error Handling
-
-| HTTP Error | Message Code | User/UX Resolution Action |
+| Error Code | Message String | Handling strategy |
 |:--|:--|:--|
-| **429** | `Daily limit reached...` | Gray out Send action. Direct user to wait until UTC Midnight. |
-| **429** | `You already have 2 active cards...` | Trigger active limit screen showing current active cards blocking the queue. |
-| **429** | `You already sent a reminder recently...` | Show error toast: "You can send another nudge in X hours." Disable nudge button. |
-| **409** | `This card has already been used...` | Pull card list from API to refresh availability indices. Remove local stale entry. |
-| **410** | `This card has expired.` | Refresh room states; notify user that the room session has expired. |
-| **400** | `Receiver is not in this room.` | Room state mismatch. Direct user back to room join options screen. |
+| `429` | *Daily limit reached...* | Disable button. Show popup: "No more sends available today." |
+| `429` | *You already have 2 active cards...* | Redirect user to their pending card screen so they can clear one. |
+| `429` | *You already sent a reminder recently...* | Disable the "remind" button, start a local 6-hour timer. |
+| `410` | *This card has expired...* | Room was closed. Re-fetch current room status. |
+| `409` | *This card has already been used or sent.* | Card was double-tapped or sent via another session. Remove card locally. |
