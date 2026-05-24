@@ -210,6 +210,9 @@ async function run() {
   });
   ok('Both sockets connected and joined room channel');
 
+  // Wait 1 second to ensure server-side UUID joining finishes resolving
+  await new Promise(r => setTimeout(r, 1000));
+
   // 12. Send Card 1, 2 (User 1 -> User 2)
   let send1Id = '', send2Id = '', send3Id = '';
   try {

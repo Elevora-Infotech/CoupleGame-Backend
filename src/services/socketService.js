@@ -1,6 +1,7 @@
 const socketIo = require('socket.io');
 const { verifyAccessToken } = require('../utils/jwt');
 const { env } = require('../config/env');
+const { supabase } = require('../db/supabase');
 
 let io;
 
@@ -33,10 +34,26 @@ const initSocket = (server) => {
         let currentRoomCode = null;
 
         // Join a specific room channel
-        socket.on('join_room', (roomCode) => {
+        socket.on('join_room', async (roomCode) => {
             console.log(`User ${socket.user.id} joining room ${roomCode}`);
             socket.join(roomCode);
             currentRoomCode = roomCode;
+
+            try {
+                // Fetch room from DB to also join the UUID channel
+                const { data: room } = await supabase
+                    .from('rooms')
+                    .select('id')
+                    .eq('code', roomCode)
+                    .single();
+
+                if (room) {
+                    console.log(`User ${socket.user.id} also joining room UUID ${room.id}`);
+                    socket.join(room.id);
+                }
+            } catch (err) {
+                console.error('Failed to auto-join UUID channel:', err.message);
+            }
 
             // Notify others in room that partner is ONLINE
             socket.to(roomCode).emit('partner_joined', {
