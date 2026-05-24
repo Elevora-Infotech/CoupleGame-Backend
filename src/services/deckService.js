@@ -339,7 +339,7 @@ const sendReminder = async (receiverId, sendId) => {
   // Fetch current record
   const { data: existing, error: fetchErr } = await supabase
     .from('room_card_sends')
-    .select('id, room_id, sender_id, receiver_id, status, reminder_sent_at')
+    .select('id, room_id, sender_id, receiver_id, status, reminder_sent_at, reminder_count')
     .eq('id', sendId)
     .eq('receiver_id', receiverId)
     .eq('status', 'COMPLETED_BY_RECEIVER')
@@ -358,7 +358,10 @@ const sendReminder = async (receiverId, sendId) => {
 
   await supabase
     .from('room_card_sends')
-    .update({ reminder_sent_at: new Date().toISOString() })
+    .update({
+      reminder_sent_at: new Date().toISOString(),
+      reminder_count:   (existing.reminder_count || 0) + 1,
+    })
     .eq('id', sendId);
 
   return existing;

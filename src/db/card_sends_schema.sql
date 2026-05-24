@@ -51,7 +51,11 @@ CREATE TABLE IF NOT EXISTS public.room_card_sends (
   completed_by_receiver_at TIMESTAMP WITH TIME ZONE,  -- IN_PROGRESS → COMPLETED_BY_RECEIVER
   confirmed_at             TIMESTAMP WITH TIME ZONE,  -- → COMPLETED
   penalty_triggered_at     TIMESTAMP WITH TIME ZONE,  -- → PENALTY
-  reminder_sent_at         TIMESTAMP WITH TIME ZONE,  -- last reminder sent by receiver
+  -- Tracking when reminder was last sent and how many times
+  -- reminder_count drives future analytics (sender non-responsiveness metric)
+  reminder_sent_at         TIMESTAMP WITH TIME ZONE,
+  reminder_count           INTEGER NOT NULL DEFAULT 0,
+  -- last reminder sent by receiver
   is_seen                  BOOLEAN NOT NULL DEFAULT FALSE,
   seen_at                  TIMESTAMP WITH TIME ZONE,
 
