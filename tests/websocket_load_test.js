@@ -89,8 +89,11 @@ async function start() {
       }
     });
 
-    socket.on('connect_error', () => {
+    socket.on('connect_error', (err) => {
       failedCount++;
+      if (failedCount <= 3) {
+        console.error(`\n[Connection Error Detail] ${err.message}`);
+      }
     });
 
     socket.on('disconnect', () => {
