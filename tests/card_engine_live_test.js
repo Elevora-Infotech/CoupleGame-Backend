@@ -210,7 +210,7 @@ async function run() {
   });
   ok('Both sockets connected and joined room channel');
 
-  // 12. Send Card 1, 2, 3 (User 1 -> User 2)
+  // 12. Send Card 1, 2 (User 1 -> User 2)
   let send1Id = '', send2Id = '', send3Id = '';
   try {
     let r = await axios.post(`${BASE}/user/deck/${p1Cards[0].deck_card_id}/send`, {
@@ -223,13 +223,37 @@ async function run() {
     }, auth(p1Token));
     send2Id = r.data.data.send.id;
 
-    r = await axios.post(`${BASE}/user/deck/${p1Cards[2].deck_card_id}/send`, {
+    ok('Successfully sent 2 cards from User 1 to User 2 (Active = 2)');
+  } catch (e) { bug('Send 2 cards', e); }
+
+  // 12b. Attempt to send Card 3 directly (should FAIL with 429 Active Limit Reached)
+  try {
+    await axios.post(`${BASE}/user/deck/${p1Cards[2].deck_card_id}/send`, {
+      room_id: roomId, receiver_id: p2Id, message: 'Message for Card 3'
+    }, auth(p1Token));
+    bug('Active sends limit check', new Error('User 1 was able to send a 3rd active card without closing one first!'));
+  } catch (e) {
+    if (e.response && e.response.status === 429 && e.response.data.message.includes('active')) {
+      ok('Active send limit of 2 successfully blocked sending 3rd card (429 Active Limit) ✓');
+    } else {
+      bug('Active sends limit check', e);
+    }
+  }
+
+  // 12c. Deflect Card 2 to free up active slot (Active goes 2 -> 1)
+  try {
+    await axios.patch(`${BASE}/user/deck/sends/${send2Id}/deflect`, {}, auth(p2Token));
+    ok('User 2 deflected Card 2 (Active count is now 1)');
+  } catch (e) { bug('Deflect Card 2', e); }
+
+  // 12d. Send Card 3 (now should succeed, Active becomes 2, Daily becomes 3)
+  try {
+    let r = await axios.post(`${BASE}/user/deck/${p1Cards[2].deck_card_id}/send`, {
       room_id: roomId, receiver_id: p2Id, message: 'Message for Card 3'
     }, auth(p1Token));
     send3Id = r.data.data.send.id;
-
-    ok('Successfully sent 3 cards from User 1 to User 2');
-  } catch (e) { bug('Send 3 cards', e); }
+    ok('Successfully sent Card 3 (Daily = 3, Active = 2)');
+  } catch (e) { bug('Send Card 3 after deflecting Card 2', e); }
 
   // 13. Test Daily Send Limit: Try sending a 4th card (User 1 -> User 2)
   try {
@@ -238,8 +262,8 @@ async function run() {
     }, auth(p1Token));
     bug('Daily send limit test', new Error('User 1 was able to send a 4th card, daily limit check failed!'));
   } catch (e) {
-    if (e.response && e.response.status === 429) {
-      ok('Daily send limit of 3 successfully prevented sending 4th card (429 Rate Limit) ✓');
+    if (e.response && e.response.status === 429 && e.response.data.message.includes('Daily limit')) {
+      ok('Daily send limit of 3 successfully prevented sending 4th card (429 Daily Limit) ✓');
     } else {
       bug('Daily send limit test', e);
     }
@@ -247,6 +271,7 @@ async function run() {
 
   // 14. Wait a brief moment to let socket receive messages
   await new Promise(r => setTimeout(r, 1000));
+  // 3 sends were made (Card 1, Card 2, Card 3)
   const recvCount = socketReceivedEvents.filter(x => x.type === 'received').length;
   if (recvCount >= 3) {
     ok(`Socket.io verified: User 2 received ${recvCount} cards in real-time ✓`);
@@ -272,11 +297,11 @@ async function run() {
     ok('User 1 confirmed Card 1 completion');
   } catch (e) { bug('Card 1 workflow (Accept -> Complete -> Confirm)', e); }
 
-  // 16. Action Card 2: Deflect
+  // 16. Action Card 3: Deflect
   try {
-    await axios.patch(`${BASE}/user/deck/sends/${send2Id}/deflect`, {}, auth(p2Token));
-    ok('User 2 deflected Card 2 successfully');
-  } catch (e) { bug('Card 2 deflection', e); }
+    await axios.patch(`${BASE}/user/deck/sends/${send3Id}/deflect`, {}, auth(p2Token));
+    ok('User 2 deflected Card 3 successfully');
+  } catch (e) { bug('Card 3 deflection', e); }
 
   // 17. Verify current sends status history
   try {
@@ -288,9 +313,9 @@ async function run() {
 
     if (c1.status !== 'COMPLETED') throw new Error(`Card 1 should be COMPLETED, got ${c1.status}`);
     if (c2.status !== 'DEFLECTED') throw new Error(`Card 2 should be DEFLECTED, got ${c2.status}`);
-    if (c3.status !== 'SENT')      throw new Error(`Card 3 should be SENT, got ${c3.status}`);
+    if (c3.status !== 'DEFLECTED') throw new Error(`Card 3 should be DEFLECTED, got ${c3.status}`);
 
-    ok('DB state matching correct engine statuses after transitions (COMPLETED, DEFLECTED, SENT)');
+    ok('DB state matching correct engine statuses after transitions (COMPLETED, DEFLECTED, DEFLECTED)');
   } catch (e) { bug('Verify status history values', e); }
 
   // 18. Test Active Card Limits (User 2 -> User 1)
