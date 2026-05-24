@@ -55,6 +55,36 @@ const initSocket = (server) => {
             socket.to(roomCode).emit('game_event', { eventType, data, senderId: socket.user.id });
         });
 
+        // ── Card Send Events ──────────────────────────────────────
+        // Client emits 'send_card' when they want to push a card to partner
+        // This is a real-time notification path (HTTP API is the authoritative path)
+        socket.on('send_card', (payload) => {
+            // payload: { roomCode, send_id, card, message, receiver_id }
+            const { roomCode, send_id, card, message, receiver_id } = payload;
+            if (!roomCode || !send_id) return;
+
+            console.log(`Card Send in room ${roomCode} by ${socket.user.id}`);
+            socket.to(roomCode).emit('card_received', {
+                send_id,
+                sender_id:   socket.user.id,
+                receiver_id,
+                room_code:   roomCode,
+                card,
+                message:     message || null,
+            });
+        });
+
+        // Client emits 'seen_card' when they open/view a received card
+        socket.on('seen_card', (payload) => {
+            const { roomCode, send_id } = payload;
+            if (!roomCode || !send_id) return;
+
+            socket.to(roomCode).emit('card_seen', {
+                send_id,
+                receiver_id: socket.user.id,
+            });
+        });
+
         socket.on('disconnect', () => {
             console.log(`🔌 User disconnected: ${socket.user.id}`);
             if (currentRoomCode) {
