@@ -64,8 +64,12 @@ const initSocket = (server) => {
                 if (room) {
                     roomCache.set(roomCode, room.id);
                     socket.join(room.id);
+                } else {
+                    roomCache.set(roomCode, null); // Cache negative lookup
                 }
             } catch (err) {
+                // Cache as null on error to prevent hammer effect on DB
+                roomCache.set(roomCode, null);
                 console.error('Failed to auto-join UUID channel:', err.message);
             }
 
