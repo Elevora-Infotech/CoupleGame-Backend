@@ -188,15 +188,23 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
   if (card.is_used)              throwError('This card has already been used or sent.', 409);
   if (card.expired)              throwError('This card has expired.', 410);
 
-  // Verify receiver is in the same room
-  const { data: roomMember } = await supabase
-    .from('room_members')
-    .select('user_id')
-    .eq('room_id', roomId)
-    .eq('user_id', receiverId)
+  // 3. Verify receiver and sender are the participants of this room
+  const { data: room, error: roomErr } = await supabase
+    .from('rooms')
+    .select('host_id, partner_id, status')
+    .eq('id', roomId)
     .single();
 
-  if (!roomMember) throwError('Receiver is not in this room.', 400);
+  if (roomErr || !room) {
+    throwError('Room not found.', 404);
+  }
+
+  const isSenderInRoom   = (room.host_id === senderId || room.partner_id === senderId);
+  const isReceiverInRoom = (room.host_id === receiverId || room.partner_id === receiverId);
+
+  if (!isSenderInRoom || !isReceiverInRoom) {
+    throwError('Receiver is not in this room.', 400);
+  }
 
   // Mark deck card as used
   const { error: useErr } = await supabase
