@@ -4,55 +4,82 @@ const router           = express.Router();
 const ctrl             = require('../controllers/deckController');
 const { authenticate } = require('../middlewares/authMiddleware');
 
-// All deck routes require authenticated user
 router.use(authenticate);
 
-/**
- * @route   GET /api/v1/user/deck
- * @desc    Get all visible cards in user's deck
- * @access  Authenticated User
- */
+// ── Standard Deck ─────────────────────────────────────────────
+/** GET  /user/deck               — Full deck (all visible cards) */
 router.get('/', ctrl.getUserDeck);
 
-/**
- * @route   GET /api/v1/user/deck/available
- * @desc    Get only unused + unexpired cards for current room (card picker)
- * @access  Authenticated User
- * @query   room_id (required)
- */
+/** GET  /user/deck/available     — Unplayed cards for current room picker */
 router.get('/available', ctrl.getAvailableCards);
 
+/** POST /user/deck/:id/use       — Play a card (no send) */
+router.post('/:deckCardId/use', ctrl.playCard);
+
+// ── Card Game Engine ──────────────────────────────────────────
 /**
- * @route   GET /api/v1/user/deck/sends
- * @desc    Get card send history (sent + received) for a room
- * @access  Authenticated User
- * @query   room_id (required)
+ * GET /user/deck/sends/limits
+ * Check daily (max 3) and active (max 2) send limits.
+ * Frontend calls this to decide whether to show/disable the Send button.
+ */
+router.get('/sends/limits', ctrl.getSendLimits);
+
+/**
+ * GET /user/deck/sends?room_id=...
+ * Full send/receive history for a room (both directions).
  */
 router.get('/sends', ctrl.getCardSendHistory);
 
 /**
- * @route   POST /api/v1/user/deck/:deckCardId/use
- * @desc    Play a card in a room — marks it used, links to room
- * @access  Authenticated User
- * @body    { room_id }
- */
-router.post('/:deckCardId/use', ctrl.playCard);
-
-/**
- * @route   POST /api/v1/user/deck/:deckCardId/send
- * @desc    Send a card from your deck to your partner with optional message
- *          Marks card as used immediately. Emits 'card_received' Socket.io event.
- * @access  Authenticated User
- * @body    { room_id, receiver_id, message? }
+ * POST /user/deck/:deckCardId/send
+ * Send a card to partner with optional message.
+ * Body: { room_id, receiver_id, message? }
+ * Enforces: daily limit 3, active limit 2.
+ * Emits: 'card_received' → receiver
  */
 router.post('/:deckCardId/send', ctrl.sendCard);
 
 /**
- * @route   PATCH /api/v1/user/deck/sends/:sendId/seen
- * @desc    Receiver marks a sent card as seen
- *          Emits 'card_seen' Socket.io event back to sender.
- * @access  Authenticated User (receiver only)
+ * PATCH /user/deck/sends/:sendId/seen
+ * Receiver marks a sent card as seen (read receipt).
+ * Emits: 'card_seen' → sender
  */
 router.patch('/sends/:sendId/seen', ctrl.markCardSeen);
+
+/**
+ * PATCH /user/deck/sends/:sendId/accept
+ * Receiver accepts the card → moves to IN_PROGRESS.
+ * Emits: 'card_accepted' → sender
+ */
+router.patch('/sends/:sendId/accept', ctrl.acceptCard);
+
+/**
+ * PATCH /user/deck/sends/:sendId/deflect
+ * Receiver deflects the card → DEFLECTED (no penalty).
+ * Emits: 'card_deflected' → sender
+ */
+router.patch('/sends/:sendId/deflect', ctrl.deflectCard);
+
+/**
+ * PATCH /user/deck/sends/:sendId/complete
+ * Receiver marks the card as done → COMPLETED_BY_RECEIVER.
+ * Sender must still confirm.
+ * Emits: 'card_completed_by_receiver' → sender
+ */
+router.patch('/sends/:sendId/complete', ctrl.markCardComplete);
+
+/**
+ * PATCH /user/deck/sends/:sendId/confirm
+ * Sender confirms the completion → COMPLETED ✅
+ * Emits: 'card_confirmed' → receiver
+ */
+router.patch('/sends/:sendId/confirm', ctrl.confirmCardComplete);
+
+/**
+ * POST /user/deck/sends/:sendId/reminder
+ * Receiver nudges sender to confirm. Rate limited: once per 6h.
+ * Emits: 'card_reminder' → sender
+ */
+router.post('/sends/:sendId/reminder', ctrl.sendReminder);
 
 module.exports = router;
