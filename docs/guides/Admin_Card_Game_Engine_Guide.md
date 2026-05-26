@@ -469,7 +469,7 @@ const { data } = await supabase
 ---
 
 ### GET `/admin/analytics/cards/:cardId`
-Detailed analytics for one specific card.
+Detailed analytics for one specific card. 
 
 **Returns:** Full history of every send of this card — who sent, who received, how long to accept, outcome.
 
