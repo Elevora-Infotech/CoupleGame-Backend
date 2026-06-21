@@ -310,3 +310,4 @@ const useCardGameStore = create((set, get) => ({
 | `429` | *You already sent a reminder recently...* | Disable the "remind" button, start a local 6-hour timer. |
 | `410` | *This card has expired...* | Room was closed. Re-fetch current room status. |
 | `409` | *This card has already been used or sent.* | Card was double-tapped or sent via another session. Remove card locally. |
+ 

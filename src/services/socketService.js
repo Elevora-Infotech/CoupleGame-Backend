@@ -4,7 +4,6 @@ const { env } = require('../config/env');
 const { supabase } = require('../db/supabase');
 
 let io;
-const roomCache = new Map();
 
 const initSocket = (server) => {
     io = socketIo(server, {
@@ -40,21 +39,8 @@ const initSocket = (server) => {
             socket.join(roomCode);
             currentRoomCode = roomCode;
 
-            // 1. Check in-memory cache first to avoid overloading database
-            if (roomCache.has(roomCode)) {
-                const cachedRoomId = roomCache.get(roomCode);
-                if (cachedRoomId) {
-                    socket.join(cachedRoomId);
-                }
-                socket.to(roomCode).emit('partner_joined', {
-                    userId: socket.user.id,
-                    status: 'online'
-                });
-                return;
-            }
-
-            // 2. Cache miss -> query DB once and save result
             try {
+                // Fetch room from DB to also join the UUID channel
                 const { data: room } = await supabase
                     .from('rooms')
                     .select('id')
@@ -62,14 +48,10 @@ const initSocket = (server) => {
                     .single();
 
                 if (room) {
-                    roomCache.set(roomCode, room.id);
+                    console.log(`User ${socket.user.id} also joining room UUID ${room.id}`);
                     socket.join(room.id);
-                } else {
-                    roomCache.set(roomCode, null); // Cache negative lookup
                 }
             } catch (err) {
-                // Cache as null on error to prevent hammer effect on DB
-                roomCache.set(roomCode, null);
                 console.error('Failed to auto-join UUID channel:', err.message);
             }
 

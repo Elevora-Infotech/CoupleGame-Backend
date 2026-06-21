@@ -1,16 +1,26 @@
 const { supabase } = require('../db/supabase');
 const { generateRoomCode } = require('../utils/codeGenerator');
+const { grantFreeCards } = require('./masterDeckService');
+
+// Only two plan types are supported: 7_DAYS (free) and 30_DAYS (paid).
+// 1_YEAR was removed per client decision.
+const VALID_EXPIRY_TYPES = ['7_DAYS', '30_DAYS'];
 
 const calculateExpiry = (expiryType) => {
     const date = new Date();
-    if (expiryType === '7_DAYS') date.setDate(date.getDate() + 7);
-    else if (expiryType === '30_DAYS') date.setDate(date.getDate() + 30);
-    else if (expiryType === '1_YEAR') date.setFullYear(date.getFullYear() + 1);
-    else date.setDate(date.getDate() + 7); // Default
+    if (expiryType === '30_DAYS') date.setDate(date.getDate() + 30);
+    else date.setDate(date.getDate() + 7); // Default: 7_DAYS
     return date.toISOString();
 };
 
 const createRoom = async (hostId, expiryType = '7_DAYS') => {
+    // Validate plan type — only 7_DAYS and 30_DAYS are supported
+    if (!VALID_EXPIRY_TYPES.includes(expiryType)) {
+        const err = new Error(`Invalid room plan. Choose '7_DAYS' or '30_DAYS'.`);
+        err.status = 400;
+        throw err;
+    }
+
     // Archive existing rooms for this host
     await supabase
         .from('rooms')
@@ -87,6 +97,14 @@ const joinRoom = async (partnerId, code) => {
         err.status = 400;
         throw err;
     }
+
+    // 6. Automatically grant free cards for BOTH users based on plan type:
+    //    7_DAYS  → 7 regular cards from 7-day master deck (no deflect)
+    //    30_DAYS → 30 regular cards from 30-day master deck + 5 deflect cards
+    await Promise.allSettled([
+        grantFreeCards(room.host_id, updatedRoom.id, room.expiry_type),
+        grantFreeCards(partnerId,    updatedRoom.id, room.expiry_type),
+    ]);
 
     return updatedRoom;
 };

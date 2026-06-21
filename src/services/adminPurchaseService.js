@@ -8,7 +8,7 @@
 
 const { supabase }           = require('../db/supabase');
 const { selectCardsForUser } = require('./purchaseService');
-const { v4: uuidv4 }         = require('uuid');
+const uuidv4                 = () => require('crypto').randomUUID();
 
 const throwError = (message, status = 500) => {
   const err = new Error(message);

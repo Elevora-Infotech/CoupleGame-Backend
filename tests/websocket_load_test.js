@@ -15,7 +15,7 @@ const { generateAccessToken } = require('../src/utils/jwt');
 // Arguments
 const CONCURRENCY = parseInt(process.argv[2], 10) || 500;
 const TARGET      = process.argv[3] || 'http://54.91.119.137';
-const RAMP_UP_MS  = parseInt(process.argv[4], 10) || 10; 
+const RAMP_UP_MS  = 10; // Connect 1 socket every 10ms (100 sockets per second)
 
 console.log(`\n🔥 ELEVORA WEBSOCKET CONCURRENCY LOAD TEST`);
 console.log(`=========================================`);
@@ -89,11 +89,8 @@ async function start() {
       }
     });
 
-    socket.on('connect_error', (err) => {
+    socket.on('connect_error', () => {
       failedCount++;
-      if (failedCount <= 3) {
-        console.error(`\n[Connection Error Detail] ${err.message}`);
-      }
     });
 
     socket.on('disconnect', () => {

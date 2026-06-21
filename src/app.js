@@ -39,6 +39,7 @@ const storeRoutes            = require('./routes/storeRoutes');
 const purchaseRoutes         = require('./routes/purchaseRoutes');
 const deckRoutes             = require('./routes/deckRoutes');
 const adminPurchaseRoutes    = require('./routes/adminPurchaseRoutes');
+const adminMasterDeckRoutes  = require('./routes/adminMasterDeckRoutes');
 
 // Setup Routes
 app.use('/api/v1/auth',            authRoutes);
@@ -51,10 +52,11 @@ app.use('/api/v1/store',           storeRoutes);
 app.use('/api/v1/user/deck',       deckRoutes);
 
 // Admin Routes (Isolated)
-app.use('/api/v1/admin/auth',      adminAuthRoutes);
-app.use('/api/v1/admin',           adminRoutes);
-app.use('/api/v1/admin',           bundleAdminRoutes);
-app.use('/api/v1/admin',           adminPurchaseRoutes);
+app.use('/api/v1/admin/auth',  adminAuthRoutes);
+app.use('/api/v1/admin',       adminRoutes);
+app.use('/api/v1/admin',       bundleAdminRoutes);
+app.use('/api/v1/admin',       adminPurchaseRoutes);
+app.use('/api/v1/admin',       adminMasterDeckRoutes);
 
 // Global Error Handler
 app.use((err, req, res, next) => {

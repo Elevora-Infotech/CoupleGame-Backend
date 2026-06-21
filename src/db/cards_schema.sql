@@ -29,7 +29,24 @@ CREATE TABLE IF NOT EXISTS public.cards (
   attributes JSONB DEFAULT '{}'::jsonb, 
   
   -- Strict Typing for Game Logic
-  card_type VARCHAR(50) DEFAULT 'ACTION' CHECK (card_type IN ('ACTION', 'WILDCARD', 'DEFENSE', 'REACTION')),
+  card_type VARCHAR(50) DEFAULT 'ACTION' CHECK (card_type IN ('ACTION', 'WILDCARD', 'DEFENSE', 'REACTION', 'DEFLECT')),
+
+  -- TRUE = this card is a wildcard/deflect-type card
+  is_wildcard BOOLEAN NOT NULL DEFAULT FALSE,
+
+  -- Deflect card server-side action (NULL = regular card, not a deflect card)
+  -- When a deflect card is played, the server reads this field and auto-executes
+  -- the matching hardcoded handler. Admin cannot change this logic — only pick
+  -- from the dropdown when creating the card.
+  deflect_action VARCHAR(30) DEFAULT NULL
+    CHECK (deflect_action IN (
+      'CANCEL_ANY',         -- Cancel any SENT/WAITING card, no penalty
+      'CANCEL_SENT_ONLY',   -- Only cancel if card is still in SENT status (Nice Try)
+      'CANCEL_IN_PROGRESS', -- Only cancel if card is IN_PROGRESS (Party Pooper)
+      'CANCEL_IMMUNE',      -- Cancel + block counter-deflect (Not Today Satan)
+      'REVERSE_ROLES',      -- Cancel + re-send with roles swapped (Switcheroo)
+      'TIMEOUT'             -- Add +10 min to deadline, no cancel (Time Out Card)
+    )),
   
   is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

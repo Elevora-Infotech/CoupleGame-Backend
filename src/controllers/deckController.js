@@ -1,6 +1,8 @@
 'use strict';
-const deckService = require('../services/deckService');
-const { getIo }   = require('../services/socketService');
+const deckService     = require('../services/deckService');
+const deflectService  = require('../services/deflectService');
+const penaltyService  = require('../services/penaltyService');
+const { getIo }       = require('../services/socketService');
 
 // ─── Helper: emit to room without crashing on socket failure ──
 const emit = (roomId, event, payload) => {
@@ -198,6 +200,120 @@ const getCardSendHistory = async (req, res, next) => {
   } catch (e) { next(e); }
 };
 
+// ─────────────────────────────────────────────────────────────
+// DEFLECT CARD SYSTEM — Get Deflect Cards for Popup
+// GET /user/deck/deflect-cards?room_id=...
+// Returns all unused, unexpired deflect cards the user owns for this room.
+// Frontend calls this to populate the deflect card list in the popup window.
+// ─────────────────────────────────────────────────────────────
+const getDeflectCards = async (req, res, next) => {
+  try {
+    const { room_id } = req.query;
+    if (!room_id) return res.status(400).json({ status: 'error', message: 'room_id is required.' });
+    const cards = await deflectService.getDeflectCards(req.user.id, room_id);
+    res.status(200).json({ status: 'success', data: { deflect_cards: cards, total: cards.length } });
+  } catch (e) { next(e); }
+};
+
+// ─────────────────────────────────────────────────────────────
+// DEFLECT CARD SYSTEM — Use a Deflect Card
+// POST /user/deck/sends/:sendId/use-deflect
+// Body: { deflect_deck_card_id }
+//
+// Automatically executes the card's deflect_action on the server:
+//   CANCEL_ANY         → target card closed, no penalty
+//   CANCEL_SENT_ONLY   → closes card only if still SENT
+//   CANCEL_IN_PROGRESS → closes card only if IN_PROGRESS
+//   CANCEL_IMMUNE      → closes card + blocks counter-deflect
+//   REVERSE_ROLES      → cancels + re-sends with roles swapped
+//   TIMEOUT            → extends deadline by +10 minutes
+// ─────────────────────────────────────────────────────────────
+const useDeflectCard = async (req, res, next) => {
+  try {
+    const { sendId }            = req.params;
+    const { deflect_deck_card_id } = req.body;
+
+    if (!sendId)               return res.status(400).json({ status: 'error', message: 'sendId param is required.' });
+    if (!deflect_deck_card_id) return res.status(400).json({ status: 'error', message: 'deflect_deck_card_id is required.' });
+
+    const result = await deflectService.useDeflectCard(req.user.id, sendId, deflect_deck_card_id);
+
+    // ── Emit to room so both users see the result in real-time ──
+    const io = getIo();
+    if (io && result.room_id) {
+      // Primary event — always emitted
+      io.to(result.room_id).emit('deflect_card_used', {
+        send_id:           result.original_send_id,
+        deflect_action:    result.deflect_action,
+        deflect_card_name: result.deflect_card_name,
+        used_by:           result.used_by,
+        outcome:           result.outcome,
+        message:           result.message,
+      });
+
+      // Secondary event for REVERSE_ROLES — partner gets a new card send
+      if (result.deflect_action === 'REVERSE_ROLES' && result.new_send_id) {
+        io.to(result.room_id).emit('card_reversed', {
+          original_send_id: result.original_send_id,
+          new_send_id:      result.new_send_id,
+          new_sender:       result.new_sender,
+          new_receiver:     result.new_receiver,
+          message:          result.message,
+        });
+      }
+
+      // Secondary event for TIMEOUT — update deadline displays
+      if (result.deflect_action === 'TIMEOUT') {
+        io.to(result.room_id).emit('card_timeout_extended', {
+          send_id:              result.original_send_id,
+          new_respond_deadline: result.new_respond_deadline,
+          new_penalty_deadline: result.new_penalty_deadline,
+          message:              result.message,
+        });
+      }
+    }
+
+    res.status(200).json({ status: 'success', data: result });
+  } catch (e) { next(e); }
+};
+
+// ─────────────────────────────────────────────────────────────
+// PENALTY 3: Reject a Card
+// PATCH /user/deck/sends/:sendId/reject
+// Receiver explicitly rejects a SENT/WAITING card.
+// Triggers transfer of an asset (card) from receiver → sender.
+// Emits: 'card_rejected' → both users in room
+// ─────────────────────────────────────────────────────────────
+const rejectCard = async (req, res, next) => {
+  try {
+    const result = await penaltyService.rejectCard(req.user.id, req.params.sendId);
+
+    // Notify both users instantly
+    emit(result.room_id || req.body.room_id, 'card_rejected', {
+      send_id:          req.params.sendId,
+      rejected_by:      req.user.id,
+      message:          result.message,
+      card_transferred: result.card_transferred,
+    });
+
+    res.status(200).json({ status: 'success', data: result });
+  } catch (e) { next(e); }
+};
+
+// ─────────────────────────────────────────────────────────────
+// GET Penalty Log for a Room
+// GET /user/deck/penalties?room_id=...
+// Both users can see the penalty history for their room.
+// ─────────────────────────────────────────────────────────────
+const getPenaltyLog = async (req, res, next) => {
+  try {
+    const { room_id } = req.query;
+    if (!room_id) return res.status(400).json({ status: 'error', message: 'room_id is required.' });
+    const log = await penaltyService.getPenaltyLog(req.user.id, room_id);
+    res.status(200).json({ status: 'success', data: { penalties: log, total: log.length } });
+  } catch (e) { next(e); }
+};
+
 module.exports = {
   getUserDeck,
   getAvailableCards,
@@ -211,4 +327,10 @@ module.exports = {
   sendReminder,
   markCardSeen,
   getCardSendHistory,
+  // Deflect Card System
+  getDeflectCards,
+  useDeflectCard,
+  // Penalty System
+  rejectCard,
+  getPenaltyLog,
 };

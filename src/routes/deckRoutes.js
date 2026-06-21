@@ -82,4 +82,49 @@ router.patch('/sends/:sendId/confirm', ctrl.confirmCardComplete);
  */
 router.post('/sends/:sendId/reminder', ctrl.sendReminder);
 
+// ── Deflect Card System ───────────────────────────────────────
+/**
+ * GET /user/deck/deflect-cards?room_id=...
+ * Returns all unused, unexpired deflect cards for the user in this room.
+ * Frontend calls this to populate the deflect card list in the popup window.
+ * User sees this when they receive a card from their partner.
+ */
+router.get('/deflect-cards', ctrl.getDeflectCards);
+
+/**
+ * POST /user/deck/sends/:sendId/use-deflect
+ * User fires a deflect card against a received card.
+ * Body: { deflect_deck_card_id }
+ *
+ * Server auto-executes the effect based on the card's deflect_action:
+ *   CANCEL_ANY         → Close target card, no penalty
+ *   CANCEL_SENT_ONLY   → Close only if SENT (Nice Try Card)
+ *   CANCEL_IN_PROGRESS → Close only if IN_PROGRESS (Party Pooper)
+ *   CANCEL_IMMUNE      → Close + block counter-deflect (Not Today Satan)
+ *   REVERSE_ROLES      → Cancel + re-send with roles swapped (Switcheroo)
+ *   TIMEOUT            → Extend deadline by +10 min (Time Out Card)
+ *
+ * Emits: 'deflect_card_used' → both users in room
+ *        'card_reversed'     → both users (REVERSE_ROLES only)
+ *        'card_timeout_extended' → both users (TIMEOUT only)
+ */
+router.post('/sends/:sendId/use-deflect', ctrl.useDeflectCard);
+
+// ── Penalty System ────────────────────────────────────────────
+/**
+ * PATCH /user/deck/sends/:sendId/reject
+ * Receiver explicitly rejects a SENT/WAITING card.
+ * Triggers Penalty 3: transfers 1 asset (card) from receiver → sender.
+ * Priority: unused card → deflect card → master pool bonus.
+ * Emits: 'card_rejected' → both users in room
+ */
+router.patch('/sends/:sendId/reject', ctrl.rejectCard);
+
+/**
+ * GET /user/deck/penalties?room_id=...
+ * Returns full penalty history for both users in this room.
+ * Frontend shows this as a "Consequences" log visible to both partners.
+ */
+router.get('/penalties', ctrl.getPenaltyLog);
+
 module.exports = router;

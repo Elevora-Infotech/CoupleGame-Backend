@@ -1,4 +1,5 @@
 'use strict';
+const { checkSendBan, resolvePendingPenalties } = require('./penaltyService');
 
 /**
  * @file   deckService.js
@@ -161,8 +162,16 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
     throwError('Message must be 200 characters or less.', 400);
   }
 
-  // Lazily resolve any overdue statuses before checking limits
+  // Lazily resolve any overdue statuses + apply pending penalties
   await resolveOverdueStatuses(senderId);
+  await resolvePendingPenalties(senderId);
+
+  // Check if sender is currently banned (Penalty 2)
+  const { isBanned, bannedUntil } = await checkSendBan(senderId);
+  if (isBanned) {
+    const until = new Date(bannedUntil).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+    throwError(`Something was started but left unfinished. Sending is paused until ${until}.`, 403);
+  }
 
   // Check daily limit
   const todayCount = await checkDailySendLimit(senderId);
@@ -265,7 +274,12 @@ const acceptCard = async (receiverId, sendId) => {
 
   const { data, error } = await supabase
     .from('room_card_sends')
-    .update({ status: 'IN_PROGRESS', accepted_at: new Date().toISOString() })
+    .update({
+      status:              'IN_PROGRESS',
+      accepted_at:         new Date().toISOString(),
+      // Penalty 2: receiver has 48h to complete once accepted
+      completion_deadline: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+    })
     .eq('id', sendId)
     .eq('receiver_id', receiverId)
     .in('status', ['SENT', 'WAITING'])  // can only accept if not yet terminal
