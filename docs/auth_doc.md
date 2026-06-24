@@ -90,3 +90,42 @@ All errors follow this JSON structure:
   "errors": [] // Optional: validation details
 }
 ```
+
+---
+
+## 🚫 5. Account Suspension (Blocked Users)
+
+The Admin Panel can **block / suspend** any user account. Once blocked, the backend enforces the restriction at **three levels simultaneously** — no special frontend code is needed.
+
+### How Enforcement Works
+
+| Where | What happens |
+|-------|-------------|
+| `POST /auth/login` | Returns **403** immediately. Blocked user cannot log in. |
+| `POST /auth/google` | Returns **403** immediately. Google login is also blocked. |
+| `POST /auth/refresh-token` | Returns **403**. Blocked user cannot silently stay logged in via token rotation. |
+| **Every protected API call** | The `authenticate` middleware checks `is_blocked` on each request. Returns **403**. |
+
+### Error Response for Suspended Accounts
+```json
+{
+  "status": "error",
+  "message": "Your account has been suspended. Please contact support."
+}
+```
+- **HTTP Status Code:** `403 Forbidden`
+
+### What Should the Frontend Do?
+
+> **No frontend code changes are required** if you already handle non-`401` errors as a fatal logout (which is standard Axios interceptor practice).
+
+The recommended handling is:
+1. Your Axios interceptor receives a **403** response.
+2. Clear all stored tokens (access + refresh).
+3. Redirect the user to the Login screen.
+4. Optionally show a message: *"Your account has been suspended. Please contact support."*
+
+### Room & Game State After Blocking
+- **Active rooms are NOT automatically deleted** when a user is blocked.
+- The blocked user will simply be ejected from the app and cannot make any further API calls.
+- If the Admin also wants to **end the user's active game**, they should use the **"Reset Active Room"** action in the Admin Panel (User Management → User Detail → Reset Room). This force-closes the room and expires all pending cards.

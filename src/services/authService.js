@@ -56,6 +56,13 @@ const login = async ({ email, password }) => {
     throw error;
   }
 
+  // Block check — suspended users cannot log in
+  if (user.is_blocked) {
+    const error = new Error('Your account has been suspended. Please contact support.');
+    error.status = 403;
+    throw error;
+  }
+
   // Ensure they used the correct provider
   if (user.auth_provider !== 'email') {
     const error = new Error('Please login using your authentication provider');
@@ -99,6 +106,13 @@ const googleLogin = async ({ token }) => {
   // Check if user exists
   let user = await userModel.findUserByEmail(email);
 
+  // Block check — suspended users cannot log in via Google either
+  if (user && user.is_blocked) {
+    const error = new Error('Your account has been suspended. Please contact support.');
+    error.status = 403;
+    throw error;
+  }
+
   if (!user) {
     // Create new user using Google details
     user = await userModel.createUser({
@@ -140,6 +154,13 @@ const refresh = async ({ refreshToken }) => {
   if (!user || user.refresh_token !== refreshToken) {
     const error = new Error('Invalid refresh token or logged out.');
     error.status = 401;
+    throw error;
+  }
+
+  // Block check — suspended users cannot silently rotate tokens
+  if (user.is_blocked) {
+    const error = new Error('Your account has been suspended. Please contact support.');
+    error.status = 403;
     throw error;
   }
 
