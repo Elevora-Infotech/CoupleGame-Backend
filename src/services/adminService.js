@@ -190,14 +190,53 @@ const getAllCategories = async () => {
 /**
  * Admin: Get all cards with their category name (for bundle card picker)
  */
-const getAllCards = async () => {
-  const { data, error } = await supabase
+const getAllCards = async ({ search = '', card_type = '', category_id = '', deflect_only = false, is_active = '' } = {}) => {
+  let query = supabase
     .from('cards')
-    .select('id, name, card_type, power_description, is_active, card_categories(id, name, theme_color)')
+    .select('id, name, card_type, power_description, image_url, deflect_action, is_active, created_at, card_categories(id, name, theme_color)')
     .order('created_at', { ascending: false });
 
+  if (search)      query = query.ilike('name', `%${search}%`);
+  if (card_type)   query = query.eq('card_type', card_type);
+  if (category_id) query = query.eq('category_id', category_id);
+  if (deflect_only === 'true' || deflect_only === true) query = query.not('deflect_action', 'is', null);
+  if (is_active === 'true')  query = query.eq('is_active', true);
+  if (is_active === 'false') query = query.eq('is_active', false);
+
+  const { data, error } = await query;
   if (error) throw error;
   return data;
+};
+
+const getCardById = async (id) => {
+  const { data, error } = await supabase
+    .from('cards')
+    .select('id, name, card_type, power_description, image_url, deflect_action, is_active, created_at, card_categories(id, name, theme_color)')
+    .eq('id', id)
+    .single();
+  if (error) { const e = new Error('Card not found.'); e.status = 404; throw e; }
+  return data;
+};
+
+const toggleCardActive = async (id, is_active) => {
+  const { data, error } = await supabase
+    .from('cards')
+    .update({ is_active })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+const getCardStats = async () => {
+  const [{ count: total }, { count: active }, { count: deflect }] = await Promise.all([
+    supabase.from('cards').select('id', { count: 'exact', head: true }),
+    supabase.from('cards').select('id', { count: 'exact', head: true }).eq('is_active', true),
+    supabase.from('cards').select('id', { count: 'exact', head: true }).not('deflect_action', 'is', null),
+  ]);
+  const { data: cats } = await supabase.from('card_categories').select('id', { count: 'exact', head: true }).eq('is_active', true);
+  return { total: total||0, active: active||0, inactive: (total||0)-(active||0), deflect_cards: deflect||0 };
 };
 
 /**
@@ -274,8 +313,11 @@ module.exports = {
   softDeleteCategory,
   createCard,
   getAllCards,
+  getCardById,
   updateCard,
   softDeleteCard,
+  toggleCardActive,
+  getCardStats,
   getBundlePlans,
   getBundleCards,
   getPlanById,

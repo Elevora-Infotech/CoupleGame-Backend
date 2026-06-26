@@ -117,8 +117,31 @@ const getAllCategories = async (req, res, next) => {
 
 const getAllCards = async (req, res, next) => {
   try {
-    const cards = await adminService.getAllCards();
+    const { search, card_type, category_id, deflect_only, is_active } = req.query;
+    const cards = await adminService.getAllCards({ search, card_type, category_id, deflect_only, is_active });
     res.status(200).json({ status: 'success', data: { cards } });
+  } catch (error) { next(error); }
+};
+
+const getCardById = async (req, res, next) => {
+  try {
+    const card = await adminService.getCardById(req.params.id);
+    res.status(200).json({ status: 'success', data: { card } });
+  } catch (error) { next(error); }
+};
+
+const toggleCardActive = async (req, res, next) => {
+  try {
+    const { is_active } = req.body;
+    const card = await adminService.toggleCardActive(req.params.id, is_active);
+    res.status(200).json({ status: 'success', data: { card } });
+  } catch (error) { next(error); }
+};
+
+const getCardStats = async (req, res, next) => {
+  try {
+    const stats = await adminService.getCardStats();
+    res.status(200).json({ status: 'success', data: { stats } });
   } catch (error) { next(error); }
 };
 
@@ -155,8 +178,11 @@ module.exports = {
   deleteCardCategory,
   createCard,
   getAllCards,
+  getCardById,
   updateCard,
   deleteCard,
+  toggleCardActive,
+  getCardStats,
   getBundlePlans,
   getBundleCards,
   getPlanById,

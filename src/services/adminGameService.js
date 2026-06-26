@@ -119,32 +119,53 @@ const getGameById = async (roomId) => {
     .eq('room_id', roomId)
     .order('created_at', { ascending: false });
 
-  // Deflect usages (deck cards that are marked as used in this room)
-  const { data: deflects } = await supabase
+  // ── All deck cards granted in this room (regular + deflect, both users) ──
+  const { data: allDeckCards } = await supabase
     .from('user_card_deck')
     .select(`
-      id, is_used, used_at,
-      user:users (id, name),
-      cards (id, name, deflect_action)
+      id, user_id, is_used, expired, used_at, master_deck_id,
+      cards (id, name, power_description, card_type, deflect_action, image_url)
     `)
     .eq('room_id', roomId)
-    .eq('is_used', true)
-    .not('cards.deflect_action', 'is', null);
+    .order('user_id');
+
+  // Group deck cards per player
+  const buildPlayerDeck = (userId) => {
+    const playerCards = (allDeckCards || []).filter(d => d.user_id === userId);
+    const regular  = playerCards.filter(d => !d.cards?.deflect_action);
+    const deflect  = playerCards.filter(d =>  d.cards?.deflect_action);
+    return {
+      regular,
+      deflect,
+      regular_total:   regular.length,
+      regular_used:    regular.filter(d => d.is_used).length,
+      regular_expired: regular.filter(d => d.expired).length,
+      deflect_total:   deflect.length,
+      deflect_used:    deflect.filter(d => d.is_used).length,
+    };
+  };
+
+  const hostDeck    = room.host?.id    ? buildPlayerDeck(room.host.id)    : null;
+  const partnerDeck = room.partner?.id ? buildPlayerDeck(room.partner.id) : null;
+
+  // Deflect usages (used deflect cards only, for the "Deflects" tab)
+  const deflects = (allDeckCards || []).filter(d => d.cards?.deflect_action && d.is_used);
 
   // Stats summary
   const allSends = sends || [];
   const stats = {
-    total_cards_played: allSends.length,
-    completed: allSends.filter(s => s.status === 'COMPLETED').length,
-    pending: allSends.filter(s => ['SENT', 'WAITING', 'IN_PROGRESS', 'COMPLETED_BY_RECEIVER'].includes(s.status)).length,
-    deflected: allSends.filter(s => s.status === 'DEFLECTED').length,
-    penalty: allSends.filter(s => s.status === 'PENALTY').length,
-    total_penalties: (penalties || []).length,
-    deflect_cards_used: (deflects || []).length,
+    total_cards_played:  allSends.length,
+    completed:           allSends.filter(s => s.status === 'COMPLETED').length,
+    pending:             allSends.filter(s => ['SENT', 'WAITING', 'IN_PROGRESS', 'COMPLETED_BY_RECEIVER'].includes(s.status)).length,
+    deflected:           allSends.filter(s => s.status === 'DEFLECTED').length,
+    penalty:             allSends.filter(s => s.status === 'PENALTY').length,
+    total_penalties:     (penalties || []).length,
+    deflect_cards_used:  deflects.length,
   };
 
-  return { room, stats, sends: allSends, penalties: penalties || [], deflects: deflects || [] };
+  return { room, stats, sends: allSends, penalties: penalties || [], deflects, hostDeck, partnerDeck };
 };
+
 
 // ─────────────────────────────────────────────────────────────
 // C. Force-End Game

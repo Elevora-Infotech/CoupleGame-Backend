@@ -38,9 +38,12 @@ router.delete('/dashboard/categories/:id', adminProtect, adminController.deleteC
  * @desc  Get all cards with category info (lightweight list for bundle card picker)
  * @access Private (Admin Only)
  */
+router.get('/dashboard/cards/stats', adminProtect, adminController.getCardStats);
 router.get('/dashboard/cards', adminProtect, adminController.getAllCards);
 router.post('/dashboard/cards', adminProtect, adminController.createCard);
+router.get('/dashboard/cards/:id', adminProtect, adminController.getCardById);
 router.put('/dashboard/cards/:id', adminProtect, adminController.updateCard);
+router.patch('/dashboard/cards/:id/toggle', adminProtect, adminController.toggleCardActive);
 router.delete('/dashboard/cards/:id', adminProtect, adminController.deleteCard);
 
 module.exports = router;
