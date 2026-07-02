@@ -1,5 +1,6 @@
 'use strict';
 const { checkSendBan, resolvePendingPenalties } = require('./penaltyService');
+const { createNotification } = require('./notificationService');
 
 /**
  * @file   deckService.js
@@ -252,6 +253,17 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
     .single();
 
   if (sendErr) throwError(`Failed to create card send record: ${sendErr.message}`, 500);
+
+  // ── Notify receiver: they received a card ────────────────────────
+  const cardName = sendRecord.cards?.name || 'a card';
+  await createNotification(
+    receiverId,
+    'CARD_RECEIVED',
+    '💫 You received a card!',
+    `Your partner sent you "${cardName}". Tap to view and respond.`,
+    { send_id: sendRecord.id, card_id: sendRecord.cards?.id, room_id: roomId }
+  );
+
   return sendRecord;
 };
 
@@ -290,6 +302,17 @@ const acceptCard = async (receiverId, sendId) => {
     .single();
 
   if (error || !data) throwError('Send record not found, already actioned, or not yours to accept.', 404);
+
+  // ── Notify sender: their card was accepted ───────────────────────
+  const cardName = data.cards?.name || 'your card';
+  await createNotification(
+    data.sender_id,
+    'CARD_ACCEPTED',
+    '✅ Card Accepted!',
+    `Your partner accepted "${cardName}" and is working on it.`,
+    { send_id: data.id, card_id: data.cards?.id, room_id: data.room_id }
+  );
+
   return data;
 };
 
@@ -309,6 +332,16 @@ const deflectCard = async (receiverId, sendId) => {
     .single();
 
   if (error || !data) throwError('Card not found or cannot be deflected in its current state.', 404);
+
+  // ── Notify sender: their card was deflected ──────────────────────
+  await createNotification(
+    data.sender_id,
+    'CARD_DEFLECTED',
+    '🛡️ Card Deflected',
+    'Your partner used a Deflect card. The moment has passed without penalty.',
+    { send_id: data.id, room_id: data.room_id }
+  );
+
   return data;
 };
 
@@ -331,6 +364,16 @@ const markCardComplete = async (receiverId, sendId) => {
     .single();
 
   if (error || !data) throwError('Card not found or not in progress.', 404);
+
+  // ── Notify sender: receiver marked card as complete, awaiting confirmation ──
+  await createNotification(
+    data.sender_id,
+    'CARD_COMPLETED',
+    '🎉 Card Completed!',
+    'Your partner completed the card challenge! Tap to confirm.',
+    { send_id: data.id, room_id: data.room_id }
+  );
+
   return data;
 };
 
@@ -349,6 +392,16 @@ const confirmCardComplete = async (senderId, sendId) => {
     .single();
 
   if (error || !data) throwError('Card not found or receiver has not marked it complete yet.', 404);
+
+  // ── Notify receiver: sender confirmed — card is fully done ───────────
+  await createNotification(
+    data.receiver_id,
+    'CARD_CONFIRMED',
+    '✨ Challenge Confirmed!',
+    'Your partner confirmed the card is done. Well played 👏',
+    { send_id: data.id, room_id: data.room_id }
+  );
+
   return data;
 };
 
@@ -385,6 +438,15 @@ const sendReminder = async (receiverId, sendId) => {
       reminder_count:   (existing.reminder_count || 0) + 1,
     })
     .eq('id', sendId);
+
+  // ── Notify sender: they are being nudged to confirm ────────────────
+  await createNotification(
+    existing.sender_id,
+    'CARD_REMINDER',
+    '🔔 Reminder from Partner',
+    'Your partner is waiting for you to confirm their completed card.',
+    { send_id: existing.id, room_id: existing.room_id }
+  );
 
   return existing;
 };

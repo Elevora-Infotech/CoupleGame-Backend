@@ -42,6 +42,7 @@ const adminPurchaseRoutes    = require('./routes/adminPurchaseRoutes');
 const adminMasterDeckRoutes  = require('./routes/adminMasterDeckRoutes');
 const adminUserRoutes        = require('./routes/adminUserRoutes');
 const adminGameRoutes        = require('./routes/adminGameRoutes');
+const notificationRoutes     = require('./routes/notificationRoutes');
 
 // Setup Routes
 app.use('/api/v1/auth',            authRoutes);
@@ -52,6 +53,7 @@ app.use('/api/v1/cards',           cardRoutes);
 app.use('/api/v1/store/purchase',  purchaseRoutes);
 app.use('/api/v1/store',           storeRoutes);
 app.use('/api/v1/user/deck',       deckRoutes);
+app.use('/api/v1/notifications',   notificationRoutes);
 
 // Admin Routes (Isolated)
 app.use('/api/v1/admin/auth',   adminAuthRoutes);

@@ -1,6 +1,7 @@
 const { supabase } = require('../db/supabase');
 const { generateRoomCode } = require('../utils/codeGenerator');
 const { grantFreeCards } = require('./masterDeckService');
+const { createNotification } = require('./notificationService');
 
 // Only two plan types are supported: 7_DAYS (free) and 30_DAYS (paid).
 // 1_YEAR was removed per client decision.
@@ -104,6 +105,34 @@ const joinRoom = async (partnerId, code) => {
     await Promise.allSettled([
         grantFreeCards(room.host_id, updatedRoom.id, room.expiry_type),
         grantFreeCards(partnerId,    updatedRoom.id, room.expiry_type),
+    ]);
+
+    // ── Notify host: partner has joined, game is now ACTIVE ────────
+    await createNotification(
+        room.host_id,
+        'PARTNER_JOINED',
+        '💕 Partner Joined!',
+        'Your partner joined the room. Your game is now ACTIVE! Cards have been added to your deck.',
+        { room_id: updatedRoom.id, room_code: updatedRoom.code }
+    );
+
+    // ── Notify both users: free cards were granted ───────────────
+    const planLabel = room.expiry_type === '30_DAYS' ? '30' : '7';
+    await Promise.allSettled([
+        createNotification(
+            room.host_id,
+            'FREE_CARDS_GRANTED',
+            '🎁 Free Cards Added!',
+            `${planLabel} free cards have been added to your deck. Start playing!`,
+            { room_id: updatedRoom.id }
+        ),
+        createNotification(
+            partnerId,
+            'FREE_CARDS_GRANTED',
+            '🎁 Free Cards Added!',
+            `${planLabel} free cards have been added to your deck. Start playing!`,
+            { room_id: updatedRoom.id }
+        ),
     ]);
 
     return updatedRoom;

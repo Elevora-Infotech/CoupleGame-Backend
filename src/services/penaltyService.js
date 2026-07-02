@@ -28,6 +28,7 @@
  */
 
 const { supabase } = require('../db/supabase');
+const { createNotification } = require('./notificationService');
 
 const throwError = (message, status = 500) => {
   const err = new Error(message);
@@ -127,6 +128,16 @@ const applyNonAcceptancePenalty = async (sendRecord) => {
   });
 
   console.log(`[PenaltyService] P1 applied: removed card "${cardToRemove.cards?.name}" from receiver ${receiverId}`);
+
+  // ── Notify receiver of the penalty ────────────────────────────────
+  await createNotification(
+    receiverId,
+    'PENALTY_RECEIVED',
+    '⚠️ Penalty: Card Removed',
+    `You ignored a card for too long. One card ("${cardToRemove.cards?.name || 'unknown'}") was removed from your deck.`,
+    { send_id: sendId, room_id: roomId }
+  );
+
   return { penalty_type: 'NON_ACCEPTANCE', card_removed: cardToRemove };
 };
 
@@ -171,6 +182,17 @@ const applyIncompletePenalty = async (sendRecord) => {
   });
 
   console.log(`[PenaltyService] P2 applied: send ban for receiver ${receiverId} until ${bannedUntil}`);
+
+  // ── Notify receiver of the send ban ───────────────────────────────
+  const banUntilFormatted = new Date(bannedUntil).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  await createNotification(
+    receiverId,
+    'SEND_BAN_RECEIVED',
+    '🚫 Sending Paused',
+    `You accepted a card but didn't finish it. Sending cards is paused until ${banUntilFormatted}.`,
+    { send_id: sendId, room_id: roomId, banned_until: bannedUntil }
+  );
+
   return { penalty_type: 'INCOMPLETE_CARD', banned_until: bannedUntil };
 };
 
@@ -298,6 +320,17 @@ const rejectCard = async (receiverId, sendId) => {
   });
 
   console.log(`[PenaltyService] P3 applied: rejection by ${receiverId}. Asset (${source}) transferred to ${senderId}`);
+
+  // ── Notify original sender: their card was rejected + they received an asset ──
+  await createNotification(
+    senderId,
+    'CARD_REJECTED',
+    '🗑️ Card Rejected',
+    transferredCard
+      ? `Your partner rejected your card. As compensation, a card has been transferred to you.`
+      : `Your partner rejected your card.`,
+    { send_id: sendId, room_id: send.room_id }
+  );
 
   return {
     outcome:          'REJECTED',

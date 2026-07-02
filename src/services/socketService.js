@@ -31,6 +31,13 @@ const initSocket = (server) => {
     io.on('connection', (socket) => {
         console.log(`🔌 User connected: ${socket.user.id} (Socket ID: ${socket.id})`);
 
+        // ── Personal user channel ───────────────────────────────
+        // Each user joins a room keyed by their own userId on connect.
+        // Server uses this to push notifications directly to this user
+        // even when they are NOT in a game room.
+        socket.join(`user:${socket.user.id}`);
+        console.log(`📬 User ${socket.user.id} joined personal channel user:${socket.user.id}`);
+
         let currentRoomCode = null;
 
         // Join a specific room channel
@@ -122,4 +129,22 @@ const getIo = () => {
     return io;
 };
 
-module.exports = { initSocket, getIo };
+/**
+ * emitToUser(userId, event, data)
+ * Push a real-time event directly to a specific user's personal socket channel.
+ * Safe to call even if the user is offline (message is simply dropped).
+ *
+ * @param {string} userId  - Target user UUID
+ * @param {string} event   - Socket event name (e.g. 'new_notification')
+ * @param {any}    data    - Payload to send
+ */
+const emitToUser = (userId, event, data) => {
+    try {
+        const ioInstance = getIo();
+        ioInstance.to(`user:${userId}`).emit(event, data);
+    } catch {
+        // Socket not initialized yet or user offline — silently ignore
+    }
+};
+
+module.exports = { initSocket, getIo, emitToUser };
