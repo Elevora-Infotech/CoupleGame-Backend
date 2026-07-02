@@ -1,5 +1,5 @@
 'use strict';
-const { checkSendBan, resolvePendingPenalties } = require('./penaltyService');
+const { checkSendBan, resolvePendingPenalties, resolveLiftedBans } = require('./penaltyService');
 const { createNotification } = require('./notificationService');
 
 /**
@@ -145,6 +145,9 @@ const resolveOverdueStatuses = async (userId) => {
     .eq('sender_id', userId)
     .in('status', ['SENT', 'WAITING'])
     .lt('penalty_deadline', now);
+
+  // Lazily resolve any lifted bans and notify the user
+  await resolveLiftedBans(userId);
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -472,6 +475,36 @@ const markCardSeen = async (receiverId, sendId) => {
 // ─────────────────────────────────────────────────────────────
 const getCardSendHistory = async (userId, roomId) => {
   await resolveOverdueStatuses(userId); // lazily update before returning
+
+  // ── CARD_DEADLINE_WARN: warn receiver if card expires within 4h ──
+  const fourHoursFromNow = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
+  const { data: nearDeadline } = await supabase
+    .from('room_card_sends')
+    .select('id, room_id, sender_id, respond_deadline, cards(name)')
+    .eq('receiver_id', userId)
+    .eq('room_id', roomId)
+    .eq('status', 'SENT')
+    .eq('deadline_warned', false)   // only warn once
+    .lte('respond_deadline', fourHoursFromNow)
+    .gt('respond_deadline', new Date().toISOString()); // not yet expired
+
+  if (nearDeadline?.length) {
+    await Promise.allSettled(nearDeadline.map(async (send) => {
+      const cardName = send.cards?.name || 'a card';
+      const deadline = new Date(send.respond_deadline).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+      await createNotification(
+        userId,
+        'CARD_DEADLINE_WARN',
+        '⏰ Card Expiring Soon!',
+        `"${cardName}" must be accepted or responded to by ${deadline} or you may receive a penalty.`,
+        { send_id: send.id, room_id: send.room_id }
+      );
+      // Mark warned so we don't spam
+      await supabase.from('room_card_sends')
+        .update({ deadline_warned: true })
+        .eq('id', send.id);
+    }));
+  }
 
   const { data, error } = await supabase
     .from('room_card_sends')

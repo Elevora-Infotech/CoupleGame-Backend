@@ -43,6 +43,7 @@ const adminMasterDeckRoutes  = require('./routes/adminMasterDeckRoutes');
 const adminUserRoutes        = require('./routes/adminUserRoutes');
 const adminGameRoutes        = require('./routes/adminGameRoutes');
 const notificationRoutes     = require('./routes/notificationRoutes');
+const adminNotificationRoutes = require('./routes/adminNotificationRoutes');
 
 // Setup Routes
 app.use('/api/v1/auth',            authRoutes);
@@ -63,6 +64,15 @@ app.use('/api/v1/admin',        adminRoutes);
 app.use('/api/v1/admin',        bundleAdminRoutes);
 app.use('/api/v1/admin',        adminPurchaseRoutes);
 app.use('/api/v1/admin',        adminMasterDeckRoutes);
+app.use('/api/v1/admin',        adminNotificationRoutes);
+
+// ── Scheduled Notification Runner (every 60 seconds) ──────────────
+const { runScheduledNotifications } = require('./services/adminNotificationService');
+setInterval(() => {
+  runScheduledNotifications().catch(err =>
+    console.error('[Scheduler] runScheduledNotifications error:', err.message)
+  );
+}, 60 * 1000); // every 60 seconds
 
 // Global Error Handler
 app.use((err, req, res, next) => {

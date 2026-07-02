@@ -83,6 +83,39 @@ const checkSendBan = async (userId) => {
 };
 
 // ─────────────────────────────────────────────────────────────
+// HELPER: Lazily check for expired bans and notify the user
+// ─────────────────────────────────────────────────────────────
+const resolveLiftedBans = async (userId) => {
+  const now = new Date().toISOString();
+  
+  // Find bans that have expired but haven't been notified yet
+  const { data: expiredBans } = await supabase
+    .from('user_send_bans')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .lt('banned_until', now)
+    .eq('ban_lifted_notified', false);
+    
+  if (expiredBans?.length) {
+    // Notify user
+    await createNotification(
+      userId,
+      'SEND_BAN_LIFTED',
+      '✅ Ban Lifted',
+      'Your sending ban has been lifted. You can now send cards again.'
+    );
+    
+    // Mark as notified and inactive
+    await Promise.allSettled(expiredBans.map(ban => 
+      supabase.from('user_send_bans')
+        .update({ is_active: false, ban_lifted_notified: true })
+        .eq('id', ban.id)
+    ));
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
 // PENALTY 1: Non-Acceptance
 // Called by the lazy resolver (resolveOverdueStatuses) when it
 // detects a card that just crossed into PENALTY status.
@@ -421,6 +454,7 @@ const getPenaltyLog = async (userId, roomId) => {
 
 module.exports = {
   checkSendBan,
+  resolveLiftedBans,
   rejectCard,
   resolvePendingPenalties,
   applyNonAcceptancePenalty,
