@@ -4,25 +4,41 @@ const { supabase } = require('../db/supabase');
  * Get overall system stats for the dashboard
  */
 const getStats = async () => {
-  // 1. Total Users
-  const { count: usersCount, error: usersError } = await supabase
-    .from('users')
-    .select('*', { count: 'exact', head: true });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString();
 
-  // 2. Total Completed Questionnaires (Approximate)
-  const { count: answersCount, error: answersError } = await supabase
-    .from('user_answers')
-    .select('user_id', { count: 'exact', head: true });
+  // Run all counts in parallel for performance
+  const [
+    { count: totalUsers },
+    { count: newUsersToday },
+    { count: dau },
+    { count: activeRooms },
+    { count: completedRooms },
+    { count: totalCardsPlayed },
+    { count: totalPenalties }
+  ] = await Promise.all([
+    supabase.from('users').select('*', { count: 'exact', head: true }),
+    supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', todayStr),
+    supabase.from('users').select('*', { count: 'exact', head: true }).gte('updated_at', todayStr),
+    supabase.from('rooms').select('*', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
+    supabase.from('rooms').select('*', { count: 'exact', head: true }).eq('status', 'COMPLETED'),
+    supabase.from('room_card_sends').select('*', { count: 'exact', head: true }),
+    supabase.from('penalty_log').select('*', { count: 'exact', head: true })
+  ]);
 
-  if (usersError || answersError) {
-    const err = new Error('Error fetching stats.');
-    err.status = 400;
-    throw err;
-  }
+  const totalGames = (activeRooms || 0) + (completedRooms || 0);
+  const avgCardsPlayed = totalGames > 0 ? ((totalCardsPlayed || 0) / totalGames).toFixed(1) : 0;
+  const avgPenalties = totalGames > 0 ? ((totalPenalties || 0) / totalGames).toFixed(1) : 0;
 
   return {
-    totalUsers: usersCount || 0,
-    activeSessions: answersCount || 0, // Simplified for this example
+    totalUsers: totalUsers || 0,
+    newUsersToday: newUsersToday || 0,
+    dau: dau || 0,
+    activeSessions: activeRooms || 0,
+    completedGames: completedRooms || 0,
+    avgCardsPlayed: Number(avgCardsPlayed),
+    avgPenalties: Number(avgPenalties),
     lastUpdated: new Date().toISOString()
   };
 };
