@@ -6,7 +6,7 @@ const rateLimit = require('express-rate-limit');
  */
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.RATE_LIMIT_MAX ? parseInt(process.env.RATE_LIMIT_MAX) : 100,
+  max: process.env.RATE_LIMIT_MAX ? parseInt(process.env.RATE_LIMIT_MAX) : 1000,
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
   message: {
@@ -21,7 +21,7 @@ const apiLimiter = rateLimit({
  */
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.AUTH_LIMIT_MAX ? parseInt(process.env.AUTH_LIMIT_MAX) : 20,
+  max: process.env.AUTH_LIMIT_MAX ? parseInt(process.env.AUTH_LIMIT_MAX) : 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
