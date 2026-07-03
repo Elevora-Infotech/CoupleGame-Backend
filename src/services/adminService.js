@@ -359,6 +359,40 @@ const getGrowthAnalytics = async () => {
   };
 };
 
+/**
+ * Create a new A/B Test
+ */
+const createABTest = async (testData) => {
+  const { name, description, test_type, variants } = testData;
+
+  // 1. Create the test
+  const { data: test, error: testError } = await supabase
+    .from('ab_tests')
+    .insert([{ name, description, test_type, status: 'DRAFT' }])
+    .select('id')
+    .single();
+
+  if (testError) throw testError;
+
+  // 2. Create the variants
+  if (variants && variants.length > 0) {
+    const variantInserts = variants.map(v => ({
+      test_id: test.id,
+      variant_name: v.name,
+      config_json: typeof v.config === 'string' ? JSON.parse(v.config) : v.config,
+      traffic_allocation_percent: v.traffic || Math.floor(100 / variants.length)
+    }));
+
+    const { error: variantError } = await supabase
+      .from('ab_test_variants')
+      .insert(variantInserts);
+
+    if (variantError) throw variantError;
+  }
+
+  return { success: true, test_id: test.id };
+};
+
 module.exports = {
   getStats,
   createQuestion,
@@ -382,4 +416,5 @@ module.exports = {
   getCardPerformanceAnalytics,
   getRelationshipDynamics,
   getGrowthAnalytics,
+  createABTest,
 };

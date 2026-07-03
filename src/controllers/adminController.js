@@ -187,6 +187,13 @@ const getGrowthAnalytics = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+const createABTest = async (req, res, next) => {
+  try {
+    const result = await adminService.createABTest(req.body);
+    res.status(201).json({ status: 'success', data: result });
+  } catch (error) { next(error); }
+};
+
 module.exports = {
   getDashboardStats,
   createNewQuestion,
@@ -210,4 +217,5 @@ module.exports = {
   getCardPerformanceAnalytics,
   getRelationshipDynamics,
   getGrowthAnalytics,
+  createABTest,
 };
