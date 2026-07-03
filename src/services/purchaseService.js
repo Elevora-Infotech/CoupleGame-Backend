@@ -59,12 +59,21 @@ const selectCardsForUser = async (userId, bundleId, cardCount) => {
   const ownedSet = new Set((ownedRows || []).map(r => r.card_id));
 
   // STEP 2: Full pool of cards available in this bundle
+  // Filter out cards that are inactive OR belong to inactive categories
   const { data: poolRows, error: poolErr } = await supabase
     .from('bundle_cards')
-    .select('card_id')
-    .eq('bundle_id', bundleId);
+    .select(`
+      card_id,
+      cards!inner (
+        is_active,
+        card_categories!inner ( is_active )
+      )
+    `)
+    .eq('bundle_id', bundleId)
+    .eq('cards.is_active', true)
+    .eq('cards.card_categories.is_active', true);
 
-  if (poolErr || !poolRows?.length) throwError('Bundle has no cards to allocate.', 400);
+  if (poolErr || !poolRows?.length) throwError('Bundle has no active cards to allocate.', 400);
 
   // STEP 3: Classify into new vs old
   const newCards = poolRows.filter(bc => !ownedSet.has(bc.card_id));

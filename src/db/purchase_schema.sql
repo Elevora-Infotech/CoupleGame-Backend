@@ -373,6 +373,7 @@ COMMENT ON FUNCTION public.fn_expire_room_cards()
 ALTER TABLE public.store_products ENABLE ROW LEVEL SECURITY;
 
 -- Public can read active products (needed for store display)
+DROP POLICY IF EXISTS "store_products_public_read" ON public.store_products;
 CREATE POLICY "store_products_public_read"
   ON public.store_products FOR SELECT
   USING (is_active = TRUE);
@@ -381,11 +382,13 @@ CREATE POLICY "store_products_public_read"
 ALTER TABLE public.user_purchases ENABLE ROW LEVEL SECURITY;
 
 -- Users can only see their own purchases
+DROP POLICY IF EXISTS "user_purchases_owner_read" ON public.user_purchases;
 CREATE POLICY "user_purchases_owner_read"
   ON public.user_purchases FOR SELECT
   USING (auth.uid() = user_id);
 
 -- Only service_role (webhook/backend) can insert purchases
+DROP POLICY IF EXISTS "user_purchases_service_insert" ON public.user_purchases;
 CREATE POLICY "user_purchases_service_insert"
   ON public.user_purchases FOR INSERT
   WITH CHECK (TRUE);  -- backend uses service_role key, bypasses RLS
@@ -394,17 +397,20 @@ CREATE POLICY "user_purchases_service_insert"
 ALTER TABLE public.user_card_deck ENABLE ROW LEVEL SECURITY;
 
 -- Users can only see their own cards
+DROP POLICY IF EXISTS "deck_owner_read" ON public.user_card_deck;
 CREATE POLICY "deck_owner_read"
   ON public.user_card_deck FOR SELECT
   USING (auth.uid() = user_id);
 
 -- Users can update their own cards (play a card → is_used=TRUE)
+DROP POLICY IF EXISTS "deck_owner_update" ON public.user_card_deck;
 CREATE POLICY "deck_owner_update"
   ON public.user_card_deck FOR UPDATE
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
 -- Only backend (service_role) can insert card deck rows
+DROP POLICY IF EXISTS "deck_service_insert" ON public.user_card_deck;
 CREATE POLICY "deck_service_insert"
   ON public.user_card_deck FOR INSERT
   WITH CHECK (TRUE);
