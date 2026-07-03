@@ -50,13 +50,13 @@ BEGIN
   ),
   scored AS (
     SELECT
-      id,
-      user_name,
-      engagement_score,
-      risk_score,
-      initiation_score,
-      response_score,
-      ROUND((engagement_score * 0.35) + (initiation_score * 0.25) + (response_score * 0.25) + ((100 - risk_score) * 0.15), 2) AS overall_score
+      base.id,
+      base.user_name,
+      base.engagement_score,
+      base.risk_score,
+      base.initiation_score,
+      base.response_score,
+      ROUND((base.engagement_score * 0.35) + (base.initiation_score * 0.25) + (base.response_score * 0.25) + ((100 - base.risk_score) * 0.15), 2) AS overall_score
     FROM base
   )
   SELECT
@@ -174,7 +174,7 @@ BEGIN
   GROUP BY r.id, r.host_id, h.name, p.name
   HAVING MAX(rcs.sent_at) < NOW() - INTERVAL '14 days' OR MAX(rcs.sent_at) IS NULL
 
-  ORDER BY risk_severity DESC;
+  ORDER BY 6 DESC;
 END;
 $$;
 
