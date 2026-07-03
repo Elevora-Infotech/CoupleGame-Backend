@@ -317,6 +317,15 @@ const getPlanById = async (planId) => {
   return data;
 };
 
+/**
+ * Get card performance analytics
+ */
+const getCardPerformanceAnalytics = async () => {
+  const { data, error } = await supabase.rpc('get_card_performance_analytics');
+  if (error) throw error;
+  return data;
+};
+
 module.exports = {
   getStats,
   createQuestion,
@@ -337,4 +346,5 @@ module.exports = {
   getBundlePlans,
   getBundleCards,
   getPlanById,
+  getCardPerformanceAnalytics,
 };

@@ -166,6 +166,13 @@ const getPlanById = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+const getCardPerformanceAnalytics = async (req, res, next) => {
+  try {
+    const analytics = await adminService.getCardPerformanceAnalytics();
+    res.status(200).json({ status: 'success', data: { analytics } });
+  } catch (error) { next(error); }
+};
+
 module.exports = {
   getDashboardStats,
   createNewQuestion,
@@ -186,5 +193,5 @@ module.exports = {
   getBundlePlans,
   getBundleCards,
   getPlanById,
+  getCardPerformanceAnalytics,
 };
-
