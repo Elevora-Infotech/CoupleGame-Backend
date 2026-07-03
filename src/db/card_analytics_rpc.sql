@@ -22,29 +22,29 @@ BEGIN
     RETURN QUERY
     SELECT 
         c.id AS card_id,
-        c.name AS title,
-        cat.name AS category_name,
+        c.name::TEXT AS title,
+        cat.name::TEXT AS category_name,
         COUNT(rcs.id) AS times_played,
         -- Acceptance rate: (accepted / total plays) * 100
         CASE WHEN COUNT(rcs.id) > 0 THEN 
             ROUND((SUM(CASE WHEN rcs.status IN ('IN_PROGRESS', 'COMPLETED_BY_RECEIVER', 'COMPLETED') THEN 1 ELSE 0 END)::NUMERIC / COUNT(rcs.id)) * 100, 2)
-        ELSE 0 END AS acceptance_rate,
+        ELSE 0::NUMERIC END AS acceptance_rate,
         
         -- Deflect rate: (deflected / total plays) * 100
         CASE WHEN COUNT(rcs.id) > 0 THEN 
             ROUND((SUM(CASE WHEN rcs.status = 'DEFLECTED' THEN 1 ELSE 0 END)::NUMERIC / COUNT(rcs.id)) * 100, 2)
-        ELSE 0 END AS deflect_rate,
+        ELSE 0::NUMERIC END AS deflect_rate,
         
         -- Penalty rate: (penalized / total plays) * 100
         CASE WHEN COUNT(rcs.id) > 0 THEN 
             ROUND((SUM(CASE WHEN rcs.status = 'PENALTY' THEN 1 ELSE 0 END)::NUMERIC / COUNT(rcs.id)) * 100, 2)
-        ELSE 0 END AS penalty_rate,
+        ELSE 0::NUMERIC END AS penalty_rate,
         
         -- Completion rate: (completed / total accepted) * 100
         CASE WHEN SUM(CASE WHEN rcs.status IN ('IN_PROGRESS', 'COMPLETED_BY_RECEIVER', 'COMPLETED') THEN 1 ELSE 0 END) > 0 THEN 
             ROUND((SUM(CASE WHEN rcs.status = 'COMPLETED' THEN 1 ELSE 0 END)::NUMERIC / 
             SUM(CASE WHEN rcs.status IN ('IN_PROGRESS', 'COMPLETED_BY_RECEIVER', 'COMPLETED') THEN 1 ELSE 0 END)) * 100, 2)
-        ELSE 0 END AS completion_rate,
+        ELSE 0::NUMERIC END AS completion_rate,
         
         -- Avg response time in minutes
         ROUND(COALESCE(AVG(EXTRACT(EPOCH FROM (rcs.accepted_at - rcs.sent_at)) / 60), 0)::NUMERIC, 1) AS avg_response_time_minutes
