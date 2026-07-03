@@ -194,6 +194,48 @@ const createABTest = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+const getBehavioralScores = async (req, res, next) => {
+  try { res.status(200).json({ status: 'success', data: await adminService.getBehavioralScores() }); } catch (e) { next(e); }
+};
+
+const getSmartDeckRecommendations = async (req, res, next) => {
+  try { res.status(200).json({ status: 'success', data: await adminService.getSmartDeckRecommendations() }); } catch (e) { next(e); }
+};
+
+const getRiskDetection = async (req, res, next) => {
+  try { res.status(200).json({ status: 'success', data: await adminService.getRiskDetection() }); } catch (e) { next(e); }
+};
+
+const getBusinessKpis = async (req, res, next) => {
+  try { res.status(200).json({ status: 'success', data: await adminService.getBusinessKpis() }); } catch (e) { next(e); }
+};
+
+const getAllFeedback = async (req, res, next) => {
+  try {
+    const { status, type } = req.query;
+    res.status(200).json({ status: 'success', data: await adminService.getAllFeedback(status, type) });
+  } catch (e) { next(e); }
+};
+
+const updateFeedbackStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status, admin_notes } = req.body;
+    res.status(200).json({ status: 'success', data: await adminService.updateFeedbackStatus(id, status, admin_notes) });
+  } catch (e) { next(e); }
+};
+
+const getCardVersionHistory = async (req, res, next) => {
+  try {
+    const { cardId } = req.query;
+    res.status(200).json({ status: 'success', data: await adminService.getCardVersionHistory(cardId) });
+  } catch (e) { next(e); }
+};
+
+const getInsightDashboard = async (req, res, next) => {
+  try { res.status(200).json({ status: 'success', data: await adminService.getInsightDashboard() }); } catch (e) { next(e); }
+};
+
 module.exports = {
   getDashboardStats,
   createNewQuestion,
@@ -218,4 +260,12 @@ module.exports = {
   getRelationshipDynamics,
   getGrowthAnalytics,
   createABTest,
+  getBehavioralScores,
+  getSmartDeckRecommendations,
+  getRiskDetection,
+  getBusinessKpis,
+  getAllFeedback,
+  updateFeedbackStatus,
+  getCardVersionHistory,
+  getInsightDashboard,
 };

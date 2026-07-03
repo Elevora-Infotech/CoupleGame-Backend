@@ -393,6 +393,99 @@ const createABTest = async (testData) => {
   return { success: true, test_id: test.id };
 };
 
+/** Behavioral Scoring Engine */
+const getBehavioralScores = async () => {
+  const { data, error } = await supabase.rpc('compute_behavioral_scores');
+  if (error) throw error;
+  return data;
+};
+
+/** Smart Deck Recommendations */
+const getSmartDeckRecommendations = async () => {
+  const { data, error } = await supabase.rpc('get_smart_deck_recommendations');
+  if (error) throw error;
+  return data;
+};
+
+/** Risk Detection */
+const getRiskDetection = async () => {
+  const { data, error } = await supabase.rpc('get_risk_detection');
+  if (error) throw error;
+  return data;
+};
+
+/** Business KPI Dashboard */
+const getBusinessKpis = async () => {
+  const { data, error } = await supabase.rpc('get_business_kpis');
+  if (error) throw error;
+  return data;
+};
+
+/** Feedback System - Get all feedback */
+const getAllFeedback = async (status, type) => {
+  let query = supabase
+    .from('user_feedback')
+    .select('*, users(name, email)')
+    .order('created_at', { ascending: false });
+  if (status) query = query.eq('status', status);
+  if (type) query = query.eq('feedback_type', type);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+};
+
+/** Feedback System - Update feedback status */
+const updateFeedbackStatus = async (feedbackId, status, admin_notes) => {
+  const { data, error } = await supabase
+    .from('user_feedback')
+    .update({ status, admin_notes })
+    .eq('id', feedbackId)
+    .select('*')
+    .single();
+  if (error) throw error;
+  return data;
+};
+
+/** Content Versioning - Get card version history */
+const getCardVersionHistory = async (cardId) => {
+  const query = supabase
+    .from('card_versions')
+    .select('*, admins(name)')
+    .order('version_number', { ascending: false });
+  if (cardId) query.eq('card_id', cardId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+};
+
+/** Insight Dashboard - Aggregated intelligence */
+const getInsightDashboard = async () => {
+  // Pull KPIs, risk summary, and top behavioral scores in one call
+  const [kpiRes, riskRes, scoreRes] = await Promise.all([
+    supabase.rpc('get_business_kpis'),
+    supabase.rpc('get_risk_detection'),
+    supabase.rpc('compute_behavioral_scores')
+  ]);
+  if (kpiRes.error) throw kpiRes.error;
+  if (riskRes.error) throw riskRes.error;
+  if (scoreRes.error) throw scoreRes.error;
+
+  const scores = scoreRes.data || [];
+  const labelCounts = scores.reduce((acc, s) => {
+    acc[s.score_label] = (acc[s.score_label] || 0) + 1;
+    return acc;
+  }, {});
+
+  return {
+    kpis: kpiRes.data || [],
+    riskAlerts: (riskRes.data || []).length,
+    criticalRisks: (riskRes.data || []).filter(r => r.risk_severity === 'CRITICAL').length,
+    userSegments: labelCounts,
+    topChampions: scores.filter(s => s.score_label === 'CHAMPION').slice(0, 5),
+    atRiskUsers: scores.filter(s => s.score_label === 'AT_RISK' || s.score_label === 'CHURNED').slice(0, 5),
+  };
+};
+
 module.exports = {
   getStats,
   createQuestion,
@@ -417,4 +510,12 @@ module.exports = {
   getRelationshipDynamics,
   getGrowthAnalytics,
   createABTest,
+  getBehavioralScores,
+  getSmartDeckRecommendations,
+  getRiskDetection,
+  getBusinessKpis,
+  getAllFeedback,
+  updateFeedbackStatus,
+  getCardVersionHistory,
+  getInsightDashboard,
 };

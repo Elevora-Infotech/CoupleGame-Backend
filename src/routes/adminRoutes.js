@@ -51,4 +51,14 @@ router.get('/dashboard/relationship-dynamics', adminProtect, adminController.get
 router.get('/dashboard/growth-analytics', adminProtect, adminController.getGrowthAnalytics);
 router.post('/dashboard/ab-tests', adminProtect, adminController.createABTest);
 
+// Section 3 & 4: Intelligence Routes
+router.get('/intelligence/behavioral-scores', adminProtect, adminController.getBehavioralScores);
+router.get('/intelligence/smart-deck', adminProtect, adminController.getSmartDeckRecommendations);
+router.get('/intelligence/risk-detection', adminProtect, adminController.getRiskDetection);
+router.get('/intelligence/kpis', adminProtect, adminController.getBusinessKpis);
+router.get('/intelligence/feedback', adminProtect, adminController.getAllFeedback);
+router.patch('/intelligence/feedback/:id', adminProtect, adminController.updateFeedbackStatus);
+router.get('/intelligence/card-versions', adminProtect, adminController.getCardVersionHistory);
+router.get('/intelligence/insights', adminProtect, adminController.getInsightDashboard);
+
 module.exports = router;
