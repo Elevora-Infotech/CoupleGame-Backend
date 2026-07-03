@@ -22,7 +22,7 @@ BEGIN
     RETURN QUERY
     SELECT 
         c.id AS card_id,
-        c.title,
+        c.name AS title,
         cat.name AS category_name,
         COUNT(rcs.id) AS times_played,
         -- Acceptance rate: (accepted / total plays) * 100
@@ -52,7 +52,7 @@ BEGIN
     FROM public.cards c
     LEFT JOIN public.card_categories cat ON c.category_id = cat.id
     LEFT JOIN public.room_card_sends rcs ON c.id = rcs.card_id
-    GROUP BY c.id, c.title, cat.name
+    GROUP BY c.id, c.name, cat.name
     ORDER BY times_played DESC;
 END;
 $$;
