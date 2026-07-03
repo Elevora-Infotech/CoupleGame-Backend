@@ -59,13 +59,17 @@ const selectFromMasterDeck = async (userId, deckId, count) => {
   // All cards available in this master deck pool
   const { data: poolRows, error } = await supabase
     .from('master_deck_cards')
-    .select('card_id, cards(id, name, deflect_action, is_active)')
+    .select('card_id, cards(id, name, deflect_action, is_active, card_categories(is_active))')
     .eq('deck_id', deckId);
 
   if (error) throwError('Failed to fetch master deck cards: ' + error.message, 500);
 
-  // Only distribute regular (non-deflect) active cards
-  const pool = (poolRows || []).filter(r => r.cards?.is_active && !r.cards?.deflect_action);
+  // Only distribute regular (non-deflect) active cards that belong to an active category
+  const pool = (poolRows || []).filter(r => 
+    r.cards?.is_active && 
+    !r.cards?.deflect_action && 
+    r.cards?.card_categories?.is_active !== false
+  );
 
   if (!pool.length) {
     console.warn(`[MasterDeck] Pool for deck ${deckId} is empty or has no active regular cards.`);
