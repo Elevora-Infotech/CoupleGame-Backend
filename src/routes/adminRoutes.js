@@ -48,5 +48,6 @@ router.delete('/dashboard/cards/:id', adminProtect, adminController.deleteCard);
 
 router.get('/dashboard/cards-analytics', adminProtect, adminController.getCardPerformanceAnalytics);
 router.get('/dashboard/relationship-dynamics', adminProtect, adminController.getRelationshipDynamics);
+router.get('/dashboard/growth-analytics', adminProtect, adminController.getGrowthAnalytics);
 
 module.exports = router;

@@ -180,6 +180,13 @@ const getRelationshipDynamics = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+const getGrowthAnalytics = async (req, res, next) => {
+  try {
+    const data = await adminService.getGrowthAnalytics();
+    res.status(200).json({ status: 'success', data });
+  } catch (error) { next(error); }
+};
+
 module.exports = {
   getDashboardStats,
   createNewQuestion,
@@ -202,4 +209,5 @@ module.exports = {
   getPlanById,
   getCardPerformanceAnalytics,
   getRelationshipDynamics,
+  getGrowthAnalytics,
 };

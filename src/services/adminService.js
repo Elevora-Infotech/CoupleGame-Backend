@@ -335,6 +335,30 @@ const getRelationshipDynamics = async () => {
   return data;
 };
 
+/**
+ * Get Growth Analytics (Funnel, Retention, Dropoff)
+ */
+const getGrowthAnalytics = async () => {
+  const { data: funnel, error: fErr } = await supabase.rpc('get_funnel_analytics');
+  if (fErr) throw fErr;
+  
+  const { data: retention, error: rErr } = await supabase.rpc('get_retention_analytics');
+  if (rErr) throw rErr;
+  
+  const { data: dropoff, error: dErr } = await supabase.rpc('get_dropoff_analysis');
+  if (dErr) throw dErr;
+  
+  // For AB Testing mock/data
+  const { data: abTests, error: abErr } = await supabase.from('ab_tests').select('*').order('created_at', { ascending: false });
+  
+  return {
+    funnel,
+    retention,
+    dropoff,
+    abTests: abTests || []
+  };
+};
+
 module.exports = {
   getStats,
   createQuestion,
@@ -357,4 +381,5 @@ module.exports = {
   getPlanById,
   getCardPerformanceAnalytics,
   getRelationshipDynamics,
+  getGrowthAnalytics,
 };
