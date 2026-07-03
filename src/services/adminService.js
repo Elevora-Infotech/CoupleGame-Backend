@@ -446,6 +446,37 @@ const updateFeedbackStatus = async (feedbackId, status, admin_notes) => {
   return data;
 };
 
+/** Feedback System - Submit feedback (from Mobile App) */
+const submitFeedback = async ({ user_id, feedback_type, rating, message, metadata }) => {
+  const VALID_TYPES = ['BUG', 'FEATURE_REQUEST', 'GENERAL', 'CARD_FEEDBACK'];
+  if (!VALID_TYPES.includes(feedback_type)) {
+    const e = new Error(`Invalid feedback_type. Must be one of: ${VALID_TYPES.join(', ')}`);
+    e.status = 400; throw e;
+  }
+  if (!message || message.trim().length === 0) {
+    const e = new Error('message is required'); e.status = 400; throw e;
+  }
+  if (rating !== undefined && rating !== null && (rating < 1 || rating > 5)) {
+    const e = new Error('rating must be between 1 and 5'); e.status = 400; throw e;
+  }
+
+  const { data, error } = await supabase
+    .from('user_feedback')
+    .insert([{
+      user_id,
+      feedback_type,
+      rating: rating || null,
+      message: message.trim(),
+      metadata: metadata || {}
+    }])
+    .select('id, created_at')
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+
 /** Content Versioning - Get card version history */
 const getCardVersionHistory = async (cardId) => {
   const query = supabase
@@ -516,6 +547,7 @@ module.exports = {
   getBusinessKpis,
   getAllFeedback,
   updateFeedbackStatus,
+  submitFeedback,
   getCardVersionHistory,
   getInsightDashboard,
 };

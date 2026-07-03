@@ -1,4 +1,5 @@
 const { supabase } = require('../db/supabase');
+const adminService = require('../services/adminService');
 
 /**
  * Assigns user to active A/B tests and returns their configurations
@@ -115,7 +116,34 @@ const recordEvent = async (req, res, next) => {
   }
 };
 
+/**
+ * Submit user feedback from Mobile App
+ */
+const submitFeedback = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const { feedback_type, rating, message, metadata } = req.body;
+
+    const result = await adminService.submitFeedback({
+      user_id: userId,
+      feedback_type,
+      rating,
+      message,
+      metadata
+    });
+
+    res.status(201).json({
+      status: 'success',
+      message: 'Feedback submitted successfully. Thank you!',
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getActiveTests,
-  recordEvent
+  recordEvent,
+  submitFeedback
 };
