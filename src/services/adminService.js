@@ -326,6 +326,15 @@ const getCardPerformanceAnalytics = async () => {
   return data;
 };
 
+/**
+ * Get relationship dynamics analytics
+ */
+const getRelationshipDynamics = async () => {
+  const { data, error } = await supabase.rpc('get_relationship_dynamics');
+  if (error) throw error;
+  return data;
+};
+
 module.exports = {
   getStats,
   createQuestion,
@@ -347,4 +356,5 @@ module.exports = {
   getBundleCards,
   getPlanById,
   getCardPerformanceAnalytics,
+  getRelationshipDynamics,
 };

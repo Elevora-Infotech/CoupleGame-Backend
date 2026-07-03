@@ -47,5 +47,6 @@ router.patch('/dashboard/cards/:id/toggle', adminProtect, adminController.toggle
 router.delete('/dashboard/cards/:id', adminProtect, adminController.deleteCard);
 
 router.get('/dashboard/cards-analytics', adminProtect, adminController.getCardPerformanceAnalytics);
+router.get('/dashboard/relationship-dynamics', adminProtect, adminController.getRelationshipDynamics);
 
 module.exports = router;

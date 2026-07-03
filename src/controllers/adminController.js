@@ -173,6 +173,13 @@ const getCardPerformanceAnalytics = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+const getRelationshipDynamics = async (req, res, next) => {
+  try {
+    const analytics = await adminService.getRelationshipDynamics();
+    res.status(200).json({ status: 'success', data: { analytics } });
+  } catch (error) { next(error); }
+};
+
 module.exports = {
   getDashboardStats,
   createNewQuestion,
@@ -194,4 +201,5 @@ module.exports = {
   getBundleCards,
   getPlanById,
   getCardPerformanceAnalytics,
+  getRelationshipDynamics,
 };
