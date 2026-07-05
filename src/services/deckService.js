@@ -36,6 +36,7 @@ const getUserDeck = async (userId) => {
     .select('*')
     .eq('user_id', userId)
     .eq('is_visible', true)
+    .neq('category_name', 'Deflect Cards')
     .order('acquired_at', { ascending: false });
 
   if (error) throwError(error.message, 400);
@@ -56,6 +57,7 @@ const getAvailableCards = async (userId, roomId) => {
     .eq('is_used', false)
     .eq('expired', false)
     .eq('is_visible', true)
+    .neq('category_name', 'Deflect Cards')
     .order('acquired_at', { ascending: false });
 
   if (error) throwError(error.message, 400);
