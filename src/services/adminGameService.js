@@ -87,47 +87,52 @@ const getAllGames = async ({ page = 1, limit = 20, status = '', search = '' } = 
 // GET /admin/games/:roomId
 // ─────────────────────────────────────────────────────────────
 const getGameById = async (roomId) => {
-  const { data: room, error: roomErr } = await supabase
-    .from('rooms')
-    .select(`
-      id, code, status, expiry_type, created_at, expires_at, updated_at,
-      host:users!rooms_host_id_fkey (id, name, email, is_blocked),
-      partner:users!rooms_partner_id_fkey (id, name, email, is_blocked)
-    `)
-    .eq('id', roomId)
-    .single();
+  // Run all independent queries in parallel to ensure sub-0.5s response time
+  const [
+    { data: room, error: roomErr },
+    { data: sends },
+    { data: penalties },
+    { data: allDeckCards }
+  ] = await Promise.all([
+    supabase
+      .from('rooms')
+      .select(`
+        id, code, status, expiry_type, created_at, expires_at, updated_at,
+        host:users!rooms_host_id_fkey (id, name, email, is_blocked),
+        partner:users!rooms_partner_id_fkey (id, name, email, is_blocked)
+      `)
+      .eq('id', roomId)
+      .single(),
+
+    supabase
+      .from('room_card_sends')
+      .select(`
+        id, status, message, sent_at, respond_deadline, penalty_deadline,
+        deflected_at, completed_at,
+        sender:users!room_card_sends_sender_id_fkey (id, name),
+        receiver:users!room_card_sends_receiver_id_fkey (id, name),
+        cards (id, name, power_description, card_type, deflect_action)
+      `)
+      .eq('room_id', roomId)
+      .order('sent_at', { ascending: false }),
+
+    supabase
+      .from('user_penalties')
+      .select('id, user_id, reason, created_at, resolved_at, is_resolved')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: false }),
+
+    supabase
+      .from('user_card_deck')
+      .select(`
+        id, user_id, is_used, expired, used_at, master_deck_id,
+        cards (id, name, power_description, card_type, deflect_action, image_url)
+      `)
+      .eq('room_id', roomId)
+      .order('user_id')
+  ]);
 
   if (roomErr || !room) throwError('Game (room) not found.', 404);
-
-  // Card sends in this room
-  const { data: sends } = await supabase
-    .from('room_card_sends')
-    .select(`
-      id, status, message, sent_at, respond_deadline, penalty_deadline,
-      deflected_at, completed_at,
-      sender:users!room_card_sends_sender_id_fkey (id, name),
-      receiver:users!room_card_sends_receiver_id_fkey (id, name),
-      cards (id, name, power_description, card_type, deflect_action)
-    `)
-    .eq('room_id', roomId)
-    .order('sent_at', { ascending: false });
-
-  // Penalties in this room
-  const { data: penalties } = await supabase
-    .from('user_penalties')
-    .select('id, user_id, reason, created_at, resolved_at, is_resolved')
-    .eq('room_id', roomId)
-    .order('created_at', { ascending: false });
-
-  // ── All deck cards granted in this room (regular + deflect, both users) ──
-  const { data: allDeckCards } = await supabase
-    .from('user_card_deck')
-    .select(`
-      id, user_id, is_used, expired, used_at, master_deck_id,
-      cards (id, name, power_description, card_type, deflect_action, image_url)
-    `)
-    .eq('room_id', roomId)
-    .order('user_id');
 
   // Group deck cards per player
   const buildPlayerDeck = (userId) => {
