@@ -71,15 +71,27 @@ const joinRoom = async (partnerId, code) => {
         return room;
     }
 
-    // 3. Check if room is full
+    // 3. Check if partner is already in this active room (just return it)
+    if (room.partner_id === partnerId && room.status === 'ACTIVE') {
+        return room;
+    }
+
+    // 4. Check if room is completed or expired
+    if (room.status === 'COMPLETED' || room.status === 'EXPIRED') {
+        const err = new Error('This room has ended or expired.');
+        err.status = 400;
+        throw err;
+    }
+
+    // 5. Check if room is full
     if (room.partner_id && room.partner_id !== partnerId) {
         const err = new Error('Room is already full.');
         err.status = 400;
         throw err;
     }
 
-    // 4. Check expiry
-    if (new Date(room.expires_at) < new Date() || room.status === 'EXPIRED') {
+    // 6. Check expiry
+    if (new Date(room.expires_at) < new Date()) {
         const err = new Error('Room has expired.');
         err.status = 400;
         throw err;
