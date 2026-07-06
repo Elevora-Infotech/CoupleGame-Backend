@@ -117,7 +117,8 @@ const leaveRoom = async (req, res, next) => {
 
 const getRoomHistory = async (req, res, next) => {
     try {
-        const history = await roomService.getRoomHistory(req.user.id);
+        const { room_id } = req.query;
+        const history = await roomService.getRoomHistory(req.user.id, room_id);
         res.status(200).json({ status: 'success', data: history });
     } catch (error) {
         next(error);

@@ -251,17 +251,24 @@ const leaveRoom = async (userId, roomId) => {
 // ─────────────────────────────────────────────────────────────
 // Get Room History for a User
 // ─────────────────────────────────────────────────────────────
-const getRoomHistory = async (userId) => {
-    // 1. Get all room IDs for this user
-    const { data: rooms, error: roomErr } = await supabase
-        .from('rooms')
-        .select('id')
-        .or(`host_id.eq.${userId},partner_id.eq.${userId}`);
-        
-    if (roomErr) throw roomErr;
-    if (!rooms || rooms.length === 0) return [];
+const getRoomHistory = async (userId, roomId) => {
+    let roomIds = [];
     
-    const roomIds = rooms.map(r => r.id);
+    if (roomId) {
+        // If specific room is requested, just use that
+        roomIds = [roomId];
+    } else {
+        // 1. Get all room IDs for this user
+        const { data: rooms, error: roomErr } = await supabase
+            .from('rooms')
+            .select('id')
+            .or(`host_id.eq.${userId},partner_id.eq.${userId}`);
+            
+        if (roomErr) throw roomErr;
+        if (!rooms || rooms.length === 0) return [];
+        
+        roomIds = rooms.map(r => r.id);
+    }
     
     // 2. Get card sends for these rooms
     const { data: sends, error: sendsErr } = await supabase
