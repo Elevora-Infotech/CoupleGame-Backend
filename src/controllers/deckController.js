@@ -45,7 +45,9 @@ const playCard = async (req, res, next) => {
 // ─────────────────────────────────────────────────────────────
 const getSendLimits = async (req, res, next) => {
   try {
-    const limits = await deckService.getSendLimits(req.user.id);
+    const { room_id } = req.query;
+    // We allow room_id to be optional for backward compatibility, but UI sends it
+    const limits = await deckService.getSendLimits(req.user.id, room_id);
     res.status(200).json({ status: 'success', data: limits });
   } catch (e) { next(e); }
 };

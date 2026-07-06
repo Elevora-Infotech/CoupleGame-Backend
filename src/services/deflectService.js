@@ -17,6 +17,7 @@
  */
 
 const { supabase } = require('../db/supabase');
+const { createNotification } = require('./notificationService');
 
 const throwError = (message, status = 500) => {
   const err = new Error(message);
@@ -167,6 +168,15 @@ const useDeflectCard = async (userId, sendId, deflectDeckCardId) => {
     .update({ is_used: true, used_at: new Date().toISOString() })
     .eq('id', deflectDeckCardId)
     .eq('user_id', userId);
+
+  // ── STEP 5.5: Notify the original sender ───────────────────────
+  await createNotification(
+    send.sender_id,
+    'CARD_DEFLECTED',
+    '🛡️ Deflect Card Used!',
+    `Your partner played "${deflectCardName}": ${result.message}`,
+    { send_id: sendId, room_id: send.room_id }
+  );
 
   // ── STEP 6: Return structured result ─────────────────────────
   return {

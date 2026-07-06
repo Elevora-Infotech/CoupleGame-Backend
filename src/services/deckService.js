@@ -95,15 +95,19 @@ const playCard = async (userId, deckCardId, roomId) => {
 // CARD GAME ENGINE — HELPER: Check daily send limit
 // Max 3 sends per day per user. Resets at midnight UTC.
 // ─────────────────────────────────────────────────────────────
-const checkDailySendLimit = async (userId) => {
+const checkDailySendLimit = async (userId, roomId) => {
   const todayMidnightUTC = new Date();
   todayMidnightUTC.setUTCHours(0, 0, 0, 0);
 
-  const { count, error } = await supabase
+  let query = supabase
     .from('room_card_sends')
     .select('id', { count: 'exact', head: true })
     .eq('sender_id', userId)
     .gte('sent_at', todayMidnightUTC.toISOString());
+
+  if (roomId) query = query.eq('room_id', roomId);
+
+  const { count, error } = await query;
 
   if (error) throwError('Failed to check daily limit.', 500);
   return count || 0;
@@ -113,12 +117,16 @@ const checkDailySendLimit = async (userId) => {
 // CARD GAME ENGINE — HELPER: Check active card limit
 // Max 2 active (non-terminal) sends per user.
 // ─────────────────────────────────────────────────────────────
-const checkActiveSendLimit = async (userId) => {
-  const { count, error } = await supabase
+const checkActiveSendLimit = async (userId, roomId) => {
+  let query = supabase
     .from('room_card_sends')
     .select('id', { count: 'exact', head: true })
     .eq('sender_id', userId)
     .not('status', 'in', `(${TERMINAL.join(',')})`);
+
+  if (roomId) query = query.eq('room_id', roomId);
+
+  const { count, error } = await query;
 
   if (error) throwError('Failed to check active card limit.', 500);
   return count || 0;
@@ -179,14 +187,14 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
     throwError(`Something was started but left unfinished. Sending is paused until ${until}.`, 403);
   }
 
-  // Check daily limit
-  const todayCount = await checkDailySendLimit(senderId);
+  // Check daily limit for THIS room
+  const todayCount = await checkDailySendLimit(senderId, roomId);
   if (todayCount >= 3) {
     throwError('Daily limit reached. You can send a maximum of 3 cards per day. Resets at midnight UTC.', 429);
   }
 
-  // Check active limit
-  const activeCount = await checkActiveSendLimit(senderId);
+  // Check active limit for THIS room
+  const activeCount = await checkActiveSendLimit(senderId, roomId);
   if (activeCount >= 2) {
     throwError('You already have 2 active cards. Finish or close one before sending another.', 429);
   }
@@ -531,10 +539,10 @@ const getCardSendHistory = async (userId, roomId) => {
 // Returns how many cards sent today and how many active.
 // Frontend uses this to decide whether to show/disable the send button.
 // ─────────────────────────────────────────────────────────────
-const getSendLimits = async (userId) => {
+const getSendLimits = async (userId, roomId) => {
   await resolveOverdueStatuses(userId);
-  const todayCount  = await checkDailySendLimit(userId);
-  const activeCount = await checkActiveSendLimit(userId);
+  const todayCount  = await checkDailySendLimit(userId, roomId);
+  const activeCount = await checkActiveSendLimit(userId, roomId);
   return {
     daily_sent:       todayCount,
     daily_limit:      3,
