@@ -248,9 +248,55 @@ const leaveRoom = async (userId, roomId) => {
     return { message: 'You have left the room.' };
 };
 
+// ─────────────────────────────────────────────────────────────
+// Get Room History for a User
+// ─────────────────────────────────────────────────────────────
+const getRoomHistory = async (userId) => {
+    // 1. Get all room IDs for this user
+    const { data: rooms, error: roomErr } = await supabase
+        .from('rooms')
+        .select('id')
+        .or(`host_id.eq.${userId},partner_id.eq.${userId}`);
+        
+    if (roomErr) throw roomErr;
+    if (!rooms || rooms.length === 0) return [];
+    
+    const roomIds = rooms.map(r => r.id);
+    
+    // 2. Get card sends for these rooms
+    const { data: sends, error: sendsErr } = await supabase
+        .from('room_card_sends')
+        .select(`
+            id, room_id, sender_id, receiver_id, status, sent_at,
+            cards ( id, name, power_description, image_url, card_categories (name) )
+        `)
+        .in('room_id', roomIds)
+        .order('sent_at', { ascending: false })
+        .limit(50);
+        
+    if (sendsErr) throw sendsErr;
+    
+    // 3. Format to match frontend SentChallenge
+    return sends.map(send => ({
+        id: send.id,
+        room_id: send.room_id,
+        sender_id: send.sender_id,
+        receiver_id: send.receiver_id,
+        card_id: send.cards?.id,
+        status: send.status,
+        sent_at: send.sent_at,
+        time: send.sent_at ? new Date(send.sent_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Unknown',
+        category: send.cards?.card_categories?.name || 'Card',
+        title: send.cards?.name || 'Unknown Card',
+        description: send.cards?.power_description || '',
+        image: send.cards?.image_url || null
+    }));
+};
+
 module.exports = {
     createRoom,
     joinRoom,
     getActiveRoom,
-    leaveRoom
+    leaveRoom,
+    getRoomHistory
 };

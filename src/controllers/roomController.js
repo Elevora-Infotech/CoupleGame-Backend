@@ -115,4 +115,13 @@ const leaveRoom = async (req, res, next) => {
     }
 };
 
-module.exports = { createRoom, joinRoom, getActiveRoom, coinFlip, leaveRoom };
+const getRoomHistory = async (req, res, next) => {
+    try {
+        const history = await roomService.getRoomHistory(req.user.id);
+        res.status(200).json({ status: 'success', data: history });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = { createRoom, joinRoom, getActiveRoom, coinFlip, leaveRoom, getRoomHistory };
