@@ -167,8 +167,78 @@ const getActiveRoom = async (userId) => {
     return room;
 };
 
+const leaveRoom = async (userId, roomId) => {
+    // 1. Find room
+    const { data: room, error: findError } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('id', roomId)
+        .single();
+
+    if (findError || !room) {
+        const err = new Error('Room not found.');
+        err.status = 404;
+        throw err;
+    }
+
+    if (room.host_id !== userId && room.partner_id !== userId) {
+        const err = new Error('You are not a participant in this room.');
+        err.status = 403;
+        throw err;
+    }
+
+    if (room.status === 'COMPLETED' || room.status === 'EXPIRED') {
+        const err = new Error(`Room is already ${room.status}.`);
+        err.status = 400;
+        throw err;
+    }
+
+    // Determine the other user to notify them
+    const otherUserId = room.host_id === userId ? room.partner_id : room.host_id;
+
+    // Mark room as COMPLETED
+    const { error: updateError } = await supabase
+        .from('rooms')
+        .update({ status: 'COMPLETED', updated_at: new Date().toISOString() })
+        .eq('id', roomId);
+
+    if (updateError) {
+        const err = new Error('Failed to leave room.');
+        err.status = 500;
+        throw err;
+    }
+
+    // Expire pending cards and unused deck cards
+    await supabase
+        .from('room_card_sends')
+        .update({ status: 'PENALTY' })
+        .eq('room_id', roomId)
+        .in('status', ['SENT', 'WAITING', 'IN_PROGRESS', 'COMPLETED_BY_RECEIVER']);
+
+    await supabase
+        .from('user_card_deck')
+        .update({ expired: true })
+        .eq('room_id', roomId)
+        .eq('is_used', false)
+        .eq('expired', false);
+
+    // Notify the other user if they exist
+    if (otherUserId) {
+        await createNotification(
+            otherUserId,
+            'ROOM_LEFT',
+            'Partner Left',
+            'Your partner has left the room. The game has ended.',
+            { room_id: roomId }
+        );
+    }
+
+    return { message: 'You have left the room.' };
+};
+
 module.exports = {
     createRoom,
     joinRoom,
-    getActiveRoom
+    getActiveRoom,
+    leaveRoom
 };

@@ -93,4 +93,26 @@ const coinFlip = async (req, res, next) => {
     }
 };
 
-module.exports = { createRoom, joinRoom, getActiveRoom, coinFlip };
+const leaveRoom = async (req, res, next) => {
+    try {
+        const { room_id } = req.body;
+        if (!room_id) {
+            return res.status(400).json({ status: 'error', message: 'room_id is required.' });
+        }
+        
+        const result = await roomService.leaveRoom(req.user.id, room_id);
+        
+        // Notify via socket
+        try {
+            getIo().to(room_id).emit('room_left', { user_id: req.user.id, room_id });
+        } catch (e) {
+            console.error('[Socket] emit room_left failed:', e.message);
+        }
+        
+        res.status(200).json({ status: 'success', data: result });
+    } catch (error) {
+        next(error);
+    }
+};
+
+module.exports = { createRoom, joinRoom, getActiveRoom, coinFlip, leaveRoom };
