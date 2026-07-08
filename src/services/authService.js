@@ -95,10 +95,13 @@ const login = async ({ email, password }) => {
  * Handle Google Login via ID Token
  */
 const googleLogin = async ({ token }) => {
+  // Parse comma-separated client IDs if multiple platforms (Web, Android, iOS) are supported
+  const audiences = env.GOOGLE_CLIENT_ID.split(',').map(id => id.trim());
+
   // Verify Google ID token
   const ticket = await googleClient.verifyIdToken({
     idToken: token,
-    audience: env.GOOGLE_CLIENT_ID,
+    audience: audiences,
   });
   const payload = ticket.getPayload();
   const { email, name } = payload;
