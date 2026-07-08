@@ -17,6 +17,10 @@ const googleSchema = z.object({
   token: z.string().min(20, 'Requires a valid Google ID token')
 });
 
+const appleSchema = z.object({
+  token: z.string().min(20, 'Requires a valid Apple identity token')
+});
+
 const refreshSchema = z.object({
   refreshToken: z.string().min(10, 'Requires a valid refresh token')
 });
@@ -90,6 +94,25 @@ const googleLogin = async (req, res, next) => {
 };
 
 /**
+ * Apple Login Controller
+ */
+const appleLogin = async (req, res, next) => {
+  try {
+    const validatedData = appleSchema.parse(req.body);
+    const result = await authService.appleLogin(validatedData);
+    return sendSuccess(res, 200, 'Apple Login successful', result);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return sendError(res, 400, 'Validation Error', error.errors);
+    }
+    if (error.message === 'Invalid Apple token') {
+      return sendError(res, 401, 'Invalid or expired Apple Token');
+    }
+    next(error);
+  }
+};
+
+/**
  * Refresh Token Controller
  */
 const refreshToken = async (req, res, next) => {
@@ -157,6 +180,7 @@ module.exports = {
   signup, 
   login,
   googleLogin,
+  appleLogin,
   refreshToken,
   forgotPassword,
   verifyOtp,

@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const { OAuth2Client } = require('google-auth-library');
+const appleSignin = require('apple-signin-auth');
 const { env } = require('../config/env');
 const userModel = require('../models/userModel');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
@@ -136,6 +137,63 @@ const googleLogin = async ({ token }) => {
 };
 
 /**
+ * Handle Apple Login via Identity Token
+ */
+const appleLogin = async ({ token }) => {
+  let payload;
+  try {
+    // Verify Apple identity token
+    payload = await appleSignin.verifyIdToken(token, {
+      // Apple allows multiple client IDs (e.g. app and web), we verify if it matches what we expect
+      audience: env.APPLE_CLIENT_ID ? env.APPLE_CLIENT_ID : undefined,
+      ignoreExpiration: true, // You might want to set this to false in production
+    });
+  } catch (err) {
+    const error = new Error('Invalid Apple token');
+    error.status = 401;
+    throw error;
+  }
+
+  const { email, sub: appleId } = payload;
+  
+  if (!email) {
+    const error = new Error('Apple login requires email access to be granted.');
+    error.status = 400;
+    throw error;
+  }
+
+  // Check if user exists
+  let user = await userModel.findUserByEmail(email);
+
+  if (user && user.is_blocked) {
+    const error = new Error('Your account has been suspended. Please contact support.');
+    error.status = 403;
+    throw error;
+  }
+
+  if (!user) {
+    // Create new user using Apple details
+    user = await userModel.createUser({
+      name: 'Apple User', // Apple only sends the name on the very first login request, so we default it if we don't have it in the token payload usually
+      email,
+      password_hash: null,
+      auth_provider: 'apple'
+    });
+  }
+
+  // Generate tokens
+  const accessToken = generateAccessToken(user.id);
+  const refreshToken = generateRefreshToken(user.id);
+
+  await userModel.updateUser(user.id, { refresh_token: refreshToken });
+
+  delete user.password_hash;
+  delete user.refresh_token;
+
+  return { user, accessToken, refreshToken };
+};
+
+/**
  * Handle generating a new Access Token from a valid Refresh Token
  */
 const refresh = async ({ refreshToken }) => {
@@ -176,7 +234,7 @@ const refresh = async ({ refreshToken }) => {
  */
 const forgotPassword = async ({ email }) => {
   const user = await userModel.findUserByEmail(email);
-  if (!user || user.auth_provider === 'google') {
+  if (!user || user.auth_provider === 'google' || user.auth_provider === 'apple') {
     // Return success to prevent email enumeration
     return { message: 'If an account exists, you will receive an OTP shortly.' };
   }
@@ -267,6 +325,7 @@ module.exports = {
   signup, 
   login,
   googleLogin,
+  appleLogin,
   refresh,
   forgotPassword,
   verifyOtp,

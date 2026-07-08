@@ -9,6 +9,7 @@ const envSchema = z.object({
   SUPABASE_ANON_KEY: z.string(),
   SUPABASE_SERVICE_ROLE_KEY: z.string(),
   GOOGLE_CLIENT_ID: z.string(),
+  APPLE_CLIENT_ID: z.string().optional(),
   SMTP_HOST: z.string().default('smtp.example.com'),
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_USER: z.string().default('user'),
