@@ -155,10 +155,16 @@ Fetches the full set of active questions and options to initialize the onboardin
 
 ### 6. The Success Contract (200 OK)
 *   **Nullability**: `question_dependencies` and `question_options` are arrays; will be `[]` if empty, never null.
+*   **Input Types**: Expected values for `input_type` are `SINGLE_CHOICE`, `TEXT`, `SLIDER`, and `DATE_PICKER`.
 
 ### 9. Frontend Implementation Logic
 *   **Caching**: Cache for **1 hour**. This data rarely changes.
 *   **Edge Cases**: If `questions` is `[]`, show "Maintenance" screen.
+*   **Conditional Questions Logic**:
+    - Before showing a question, check if it has items in its `dependencies` array.
+    - If `dependencies.length > 0`, find the user's answer to the `parent_question_id`.
+    - Only display the current question if the user's selected answer matches the `required_option_id`.
+*   **DATE_PICKER Logic**: For `DATE_PICKER` inputs (e.g. Anniversary), capture an ISO-8601 date string and submit it in the `text_value` field.
 
 ---
 
