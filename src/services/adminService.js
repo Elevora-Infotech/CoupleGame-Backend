@@ -92,7 +92,7 @@ const createQuestion = async (questionData) => {
 const getAllQuestions = async () => {
   const { data, error } = await supabase
     .from('questions')
-    .select('*, options:question_options(*), dependencies:question_dependencies(*)');
+    .select('*, options:question_options(*), dependencies:question_dependencies!child_question_id(*)');
 
   if (error) throw error;
   return data;
