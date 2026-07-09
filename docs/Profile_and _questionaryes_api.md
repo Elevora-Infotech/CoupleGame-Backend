@@ -142,6 +142,44 @@ curl --location --request PATCH 'http://localhost:3000/api/v1/profile/me' \
 
 ---
 
+## GET | /profile/relationship-stats | GET_RELATIONSHIP_STATS
+
+### 1. Context
+Calculates and returns how long the user and their partner have been together based on their answer to the "Anniversary" questionnaire question.
+
+### 2. Security/Auth
+*   **Auth Type**: JWT (Access Token).
+
+### 5. The Request Contract
+*   **Path/Query Params**: None.
+*   **Request Body**: None (READ-ONLY).
+
+### 6. The Success Contract (200 OK)
+```json
+{
+  "status": "success",
+  "data": {
+    "stats": {
+      "anniversaryDate": "2023-01-01",
+      "daysTogether": 556,
+      "formattedTime": "1 Year, 6 Months, 11 Days"
+    }
+  }
+}
+```
+*   **Nullability**: If the user has not yet answered the Anniversary question, `anniversaryDate` will be `null` and `daysTogether` will be `0`.
+
+### 9. Frontend Implementation Logic
+*   **Usage**: Call this API to display "Time Together" on the dashboard or profile screen.
+
+### 10. cURL Snippet
+```bash
+curl --location --request GET 'http://localhost:3000/api/v1/profile/relationship-stats' \
+--header 'Authorization: Bearer {{ACCESS_TOKEN}}'
+```
+
+---
+
 ## GET | /questionnaire | FETCH_QUESTIONNAIRE
 
 ### 1. Context

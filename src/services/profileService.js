@@ -115,7 +115,60 @@ const updateProfile = async (userId, updateData) => {
   return profileData;
 };
 
+/**
+ * Fetch Relationship Stats (Anniversary)
+ */
+const getRelationshipStats = async (userId) => {
+  // 1. Find the Anniversary Question
+  const { data: question, error: qError } = await supabase
+    .from('questions')
+    .select('id')
+    .ilike('text', '%Anniversary%')
+    .single();
+
+  if (qError || !question) {
+    return { anniversaryDate: null, daysTogether: 0, formattedTime: 'Unknown' };
+  }
+
+  // 2. Find the User's Answer
+  const { data: answer, error: aError } = await supabase
+    .from('user_answers')
+    .select('text_value')
+    .eq('user_id', userId)
+    .eq('question_id', question.id)
+    .single();
+
+  if (aError || !answer || !answer.text_value) {
+    // If not found for user, we could theoretically check partner, but assuming user answered it.
+    return { anniversaryDate: null, daysTogether: 0, formattedTime: 'Unknown' };
+  }
+
+  const anniversaryDate = new Date(answer.text_value);
+  const now = new Date();
+  
+  // Calculate days difference
+  const diffTime = Math.abs(now - anniversaryDate);
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  // Calculate years, months, days roughly for formatted string
+  const years = Math.floor(diffDays / 365);
+  const months = Math.floor((diffDays % 365) / 30);
+  const days = (diffDays % 365) % 30;
+
+  let formattedTime = [];
+  if (years > 0) formattedTime.push(`${years} Year${years > 1 ? 's' : ''}`);
+  if (months > 0) formattedTime.push(`${months} Month${months > 1 ? 's' : ''}`);
+  if (days > 0) formattedTime.push(`${days} Day${days > 1 ? 's' : ''}`);
+
+  return {
+    anniversaryDate: answer.text_value,
+    daysTogether: diffDays,
+    formattedTime: formattedTime.length > 0 ? formattedTime.join(', ') : '0 Days'
+  };
+};
+
 module.exports = {
   getProfile,
-  updateProfile
+  updateProfile,
+  getRelationshipStats
 };

@@ -36,8 +36,25 @@ const updateMe = async (req, res, next) => {
     next(error);
   }
 };
+/**
+ * Get current user's relationship stats (e.g. Anniversary)
+ */
+const getRelationshipStats = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const stats = await profileService.getRelationshipStats(userId);
+    
+    res.status(200).json({
+      status: 'success',
+      data: { stats }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 module.exports = {
   getMe,
-  updateMe
+  updateMe,
+  getRelationshipStats
 };
