@@ -16,6 +16,7 @@ router.patch('/notifications/templates/:id/toggle', ctrl.toggleTemplate);
 
 // Manual send
 router.post('/notifications/send',    ctrl.sendManual);
+router.post('/notifications/trigger-anniversaries', ctrl.triggerAnniversaries);
 
 // Logs (send history)
 router.get('/notifications/logs',     ctrl.getLogs);

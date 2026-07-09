@@ -287,6 +287,85 @@ const runScheduledNotifications = async () => {
   }
 };
 
+// ─────────────────────────────────────────────────────────────
+// J. Trigger Anniversary Notifications
+// Finds users whose Anniversary is today and sends a notification.
+// ─────────────────────────────────────────────────────────────
+const triggerAnniversaryNotifications = async (adminId) => {
+  // 1. Find the Anniversary Question
+  const { data: question } = await supabase
+    .from('questions')
+    .select('id')
+    .ilike('text', '%Anniversary%')
+    .single();
+
+  if (!question) return { sent_count: 0, message: 'Anniversary question not found.' };
+
+  // 2. Fetch all answers to this question
+  // In production with millions of users, this should be an RPC call or paginated.
+  const { data: answers, error } = await supabase
+    .from('user_answers')
+    .select('user_id, text_value')
+    .eq('question_id', question.id)
+    .not('text_value', 'is', null);
+
+  if (error) throw error;
+
+  const today = new Date();
+  const currentMonth = today.getMonth() + 1;
+  const currentDay = today.getDate();
+
+  let sentCount = 0;
+  const toNotify = [];
+
+  for (const ans of answers) {
+    try {
+      const annivDate = new Date(ans.text_value);
+      if (isNaN(annivDate.getTime())) continue; // invalid date
+
+      const annivMonth = annivDate.getMonth() + 1;
+      const annivDay = annivDate.getDate();
+      const years = today.getFullYear() - annivDate.getFullYear();
+
+      // If it's their anniversary today AND it's been at least 1 year
+      if (annivMonth === currentMonth && annivDay === currentDay && years > 0) {
+        toNotify.push({
+          userId: ans.user_id,
+          years
+        });
+      }
+    } catch (e) {
+      // skip invalid dates
+    }
+  }
+
+  // Send notifications
+  for (const item of toNotify) {
+    await createNotification(
+      item.userId,
+      'ADMIN_BROADCAST',
+      `Happy ${item.years} Year Anniversary! 🎉`,
+      `Wishing you and your partner a beautiful day full of love and joy. Keep the spark alive! ❤️`,
+      { type: 'anniversary' }
+    );
+    sentCount++;
+  }
+
+  // Log it if manually triggered by an admin
+  if (adminId) {
+    await supabase.from('admin_notification_logs').insert([{
+      admin_id: adminId, 
+      type: 'MANUAL_BROADCAST', 
+      title: 'Anniversary Notifications (Auto)', 
+      body: 'Triggered Anniversary push',
+      target_user_id: null, 
+      sent_count: sentCount,
+    }]);
+  }
+
+  return { sent_count: sentCount };
+};
+
 module.exports = {
   getNotificationTemplates,
   updateTemplate,
@@ -298,4 +377,5 @@ module.exports = {
   getAdminNotificationStats,
   getAdminNotificationLogs,
   runScheduledNotifications,
+  triggerAnniversaryNotifications,
 };

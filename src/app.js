@@ -69,11 +69,23 @@ app.use('/api/v1/admin',        adminMasterDeckRoutes);
 app.use('/api/v1/admin',        adminNotificationRoutes);
 
 // ── Scheduled Notification Runner (every 60 seconds) ──────────────
-const { runScheduledNotifications } = require('./services/adminNotificationService');
+const { runScheduledNotifications, triggerAnniversaryNotifications } = require('./services/adminNotificationService');
+let lastAnnivRun = null;
+
 setInterval(() => {
   runScheduledNotifications().catch(err =>
     console.error('[Scheduler] runScheduledNotifications error:', err.message)
   );
+
+  // Auto trigger anniversaries at 10:00 AM server time every day
+  const now = new Date();
+  const dateStr = now.toDateString();
+  if (now.getHours() === 10 && lastAnnivRun !== dateStr) {
+    lastAnnivRun = dateStr;
+    triggerAnniversaryNotifications(null).catch(err =>
+      console.error('[Scheduler] triggerAnniversaryNotifications error:', err.message)
+    );
+  }
 }, 60 * 1000); // every 60 seconds
 
 // Global Error Handler

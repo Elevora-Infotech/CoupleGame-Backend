@@ -76,9 +76,16 @@ const getLogs = async (req, res, next) => {
     res.json({ status: 'success', data: { logs } });
   } catch (e) { next(e); }
 };
+// POST /admin/notifications/trigger-anniversaries
+const triggerAnniversaries = async (req, res, next) => {
+  try {
+    const result = await svc.triggerAnniversaryNotifications(req.admin.id);
+    res.json({ status: 'success', message: `Anniversary notifications sent to ${result.sent_count} user(s).`, data: result });
+  } catch (e) { next(e); }
+};
 
 module.exports = {
   getTemplates, updateTemplate, toggleTemplate,
   sendManual, getScheduled, schedule, cancelScheduled,
-  getStats, getLogs,
+  getStats, getLogs, triggerAnniversaries,
 };
