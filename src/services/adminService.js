@@ -47,7 +47,7 @@ const getStats = async () => {
  * Admin: Create a new question
  */
 const createQuestion = async (questionData) => {
-  const { text, input_type, options } = questionData;
+  const { text, input_type, options, dependency_parent_id, dependency_option_id } = questionData;
 
   // Insert Question
   const { data: question, error: qError } = await supabase
@@ -73,20 +73,33 @@ const createQuestion = async (questionData) => {
     if (oError) throw oError;
   }
 
+  // Insert Dependency if provided
+  if (dependency_parent_id && dependency_option_id) {
+    const { error: depError } = await supabase
+      .from('question_dependencies')
+      .insert([{
+        child_question_id: question.id,
+        parent_question_id: dependency_parent_id,
+        required_option_id: dependency_option_id
+      }]);
+
+    if (depError) throw depError;
+  }
+
   return question;
 };
 
 const getAllQuestions = async () => {
   const { data, error } = await supabase
     .from('questions')
-    .select('*, options:question_options(*)');
+    .select('*, options:question_options(*), dependencies:question_dependencies(*)');
 
   if (error) throw error;
   return data;
 };
 
 const updateQuestion = async (id, data) => {
-  const { text, input_type, is_active } = data;
+  const { text, input_type, is_active, dependency_parent_id, dependency_option_id } = data;
   const { data: question, error } = await supabase
     .from('questions')
     .update({ text, input_type, is_active })
@@ -95,6 +108,24 @@ const updateQuestion = async (id, data) => {
     .single();
 
   if (error) throw error;
+
+  // Handle dependency update if provided in payload
+  if (dependency_parent_id !== undefined && dependency_option_id !== undefined) {
+    // Delete existing dependency first
+    await supabase.from('question_dependencies').delete().eq('child_question_id', id);
+    
+    if (dependency_parent_id && dependency_option_id) {
+      const { error: depError } = await supabase
+        .from('question_dependencies')
+        .insert([{
+          child_question_id: id,
+          parent_question_id: dependency_parent_id,
+          required_option_id: dependency_option_id
+        }]);
+      if (depError) throw depError;
+    }
+  }
+
   return question;
 };
 

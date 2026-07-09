@@ -22,7 +22,7 @@ const getDashboardStats = async (req, res, next) => {
  */
 const createNewQuestion = async (req, res, next) => {
   try {
-    const { text, input_type, options } = req.body;
+    const { text, input_type, options, dependency_parent_id, dependency_option_id } = req.body;
     
     if (!text) {
       const err = new Error('Question text is required.');
@@ -30,7 +30,13 @@ const createNewQuestion = async (req, res, next) => {
       throw err;
     }
 
-    const question = await adminService.createQuestion({ text, input_type, options });
+    const question = await adminService.createQuestion({ 
+      text, 
+      input_type, 
+      options, 
+      dependency_parent_id, 
+      dependency_option_id 
+    });
     
     res.status(201).json({
       status: 'success',
