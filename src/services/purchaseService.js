@@ -19,12 +19,6 @@
 
 const { supabase } = require('../db/supabase');
 
-const throwError = (message, status) => {
-  const error = new Error(message);
-  error.status = status;
-  throw error;
-};
-
 // ─── Helper ──────────────────────────────────────────────────
 const throwError = (message, status = 500) => {
   const err = new Error(message);
@@ -285,7 +279,10 @@ const mockBypassPurchase = async (userId, bundleId, planId) => {
     .select()
     .single();
 
-  if (purchaseErr) throwError('Failed to create purchase record.', 500);
+  if (purchaseErr) {
+    console.error('Purchase Insert Error:', purchaseErr);
+    throwError(`Failed to create purchase record: ${purchaseErr.message}`, 500);
+  }
 
   const selectedCardIds = await selectCardsForUser(userId, bundleId, plan.card_count);
   if (!selectedCardIds.length) throwError('No cards could be selected.', 500);
@@ -302,7 +299,10 @@ const mockBypassPurchase = async (userId, bundleId, planId) => {
     .from('user_card_deck')
     .insert(deckRows);
 
-  if (deckErr) throwError('Failed to allocate cards to user deck.', 500);
+  if (deckErr) {
+    console.error('Deck Insert Error:', deckErr);
+    throwError(`Failed to allocate cards to user deck: ${deckErr.message}`, 500);
+  }
 
   await supabase
     .from('user_purchases')
