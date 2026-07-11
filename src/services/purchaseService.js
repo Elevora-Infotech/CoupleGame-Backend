@@ -19,6 +19,12 @@
 
 const { supabase } = require('../db/supabase');
 
+const throwError = (message, status) => {
+  const error = new Error(message);
+  error.status = status;
+  throw error;
+};
+
 // ─── Helper ──────────────────────────────────────────────────
 const throwError = (message, status = 500) => {
   const err = new Error(message);
