@@ -269,8 +269,8 @@ const mockBypassPurchase = async (userId, bundleId, planId) => {
       bundle_id:        bundleId,
       plan_id:          planId,
       transaction_id:   transactionId,
-      platform:         'bypass',
-      store_product_id: 'mock_bypass',
+      platform:         'android',
+      store_product_id: null,
       amount_paid:      plan.price,
       currency:         'INR',
       cards_received:   0,
@@ -285,23 +285,24 @@ const mockBypassPurchase = async (userId, bundleId, planId) => {
   }
 
   const selectedCardIds = await selectCardsForUser(userId, bundleId, plan.card_count);
-  if (!selectedCardIds.length) throwError('No cards could be selected.', 500);
+  
+  if (selectedCardIds.length > 0) {
+    const deckRows = selectedCardIds.map(cardId => ({
+      user_id:     userId,
+      card_id:     cardId,
+      purchase_id: purchase.id,
+      bundle_id:   bundleId,
+      room_id:     activeRoomId,
+    }));
 
-  const deckRows = selectedCardIds.map(cardId => ({
-    user_id:     userId,
-    card_id:     cardId,
-    purchase_id: purchase.id,
-    bundle_id:   bundleId,
-    room_id:     activeRoomId,
-  }));
+    const { error: deckErr } = await supabase
+      .from('user_card_deck')
+      .insert(deckRows);
 
-  const { error: deckErr } = await supabase
-    .from('user_card_deck')
-    .insert(deckRows);
-
-  if (deckErr) {
-    console.error('Deck Insert Error:', deckErr);
-    throwError(`Failed to allocate cards to user deck: ${deckErr.message}`, 500);
+    if (deckErr) {
+      console.error('Deck Insert Error:', deckErr);
+      throwError(`Failed to allocate cards to user deck: ${deckErr.message}`, 500);
+    }
   }
 
   await supabase
