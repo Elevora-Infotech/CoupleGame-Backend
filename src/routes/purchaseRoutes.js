@@ -18,5 +18,11 @@ router.post('/verify', validateRevenueCatWebhook, ctrl.verifyPurchase);
  * @access  Authenticated User
  */
 router.get('/history', authenticate, ctrl.getPurchaseHistory);
+/**
+ * @route   POST /api/v1/store/purchase/mock-bypass
+ * @desc    Mock bypass purchase for development
+ * @access  Authenticated User
+ */
+router.post('/mock-bypass', authenticate, ctrl.mockBypassPurchase);
 
 module.exports = router;

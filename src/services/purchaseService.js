@@ -235,6 +235,87 @@ const processWebhookPurchase = async (webhookBody) => {
   };
 };
 
+// ─────────────────────────────────────────────────────────────
+// Mock Bypass Purchase (for development / before RevenueCat)
+// ─────────────────────────────────────────────────────────────
+const mockBypassPurchase = async (userId, bundleId, planId) => {
+  // Same logic as processWebhookPurchase but simplified for bypassing
+  const { data: activeRoom, error: roomErr } = await supabase
+    .from('rooms')
+    .select('id')
+    .or(`host_id.eq.${userId},partner_id.eq.${userId}`)
+    .eq('status', 'ACTIVE')
+    .maybeSingle();
+
+  if (roomErr || !activeRoom) {
+    throwError('You must be inside an active game room to purchase cards.', 403);
+  }
+  const activeRoomId = activeRoom.id;
+
+  const { data: plan, error: planErr } = await supabase
+    .from('bundle_plans')
+    .select('price, card_count')
+    .eq('id', planId)
+    .single();
+
+  if (planErr || !plan) throwError('Invalid plan ID.', 400);
+
+  const transactionId = `BYPASS-${Math.floor(100000 + Math.random() * 900000)}`;
+
+  const { data: purchase, error: purchaseErr } = await supabase
+    .from('user_purchases')
+    .upsert([{
+      user_id:          userId,
+      bundle_id:        bundleId,
+      plan_id:          planId,
+      transaction_id:   transactionId,
+      platform:         'bypass',
+      store_product_id: 'mock_bypass',
+      amount_paid:      plan.price,
+      currency:         'INR',
+      cards_received:   0,
+      status:           'pending',
+    }], { onConflict: 'transaction_id' })
+    .select()
+    .single();
+
+  if (purchaseErr) throwError('Failed to create purchase record.', 500);
+
+  const selectedCardIds = await selectCardsForUser(userId, bundleId, plan.card_count);
+  if (!selectedCardIds.length) throwError('No cards could be selected.', 500);
+
+  const deckRows = selectedCardIds.map(cardId => ({
+    user_id:     userId,
+    card_id:     cardId,
+    purchase_id: purchase.id,
+    bundle_id:   bundleId,
+    room_id:     activeRoomId,
+  }));
+
+  const { error: deckErr } = await supabase
+    .from('user_card_deck')
+    .insert(deckRows);
+
+  if (deckErr) throwError('Failed to allocate cards to user deck.', 500);
+
+  await supabase
+    .from('user_purchases')
+    .update({
+      status:        'completed',
+      cards_received: selectedCardIds.length,
+      completed_at:  new Date().toISOString(),
+    })
+    .eq('id', purchase.id);
+
+  return {
+    success:        true,
+    purchase_id:    purchase.id,
+    cards_received: selectedCardIds.length,
+    transaction_id: transactionId,
+  };
+};
+
+
 
 // ─────────────────────────────────────────────────────────────
 // User: Get Own Purchase History
@@ -270,4 +351,5 @@ module.exports = {
   selectCardsForUser,
   processWebhookPurchase,
   getUserPurchaseHistory,
+  mockBypassPurchase,
 };

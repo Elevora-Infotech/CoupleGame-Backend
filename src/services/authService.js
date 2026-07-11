@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const { OAuth2Client } = require('google-auth-library');
 const appleSignin = require('apple-signin-auth');
+const appleSignin = require('apple-signin-auth');
 const { env } = require('../config/env');
 const userModel = require('../models/userModel');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
