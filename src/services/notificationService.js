@@ -22,6 +22,7 @@
  *   SEND_BAN_RECEIVED    — You've been banned from sending for 24h
  */
 
+const axios = require('axios');
 const { supabase } = require('../db/supabase');
 
 // ─────────────────────────────────────────────────────────────
@@ -33,6 +34,42 @@ const getIoSafe = () => {
     return getIo();
   } catch {
     return null;
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// HELPER: Send Remote Push Notification via Expo Push Service
+// Delivers banner notification to device when app is CLOSED / IN BACKGROUND
+// ─────────────────────────────────────────────────────────────
+const sendExpoPushNotification = async (pushToken, title, body, data = {}) => {
+  if (!pushToken || typeof pushToken !== 'string') return;
+  if (!pushToken.startsWith('ExponentPushToken[') && !pushToken.startsWith('ExpoPushToken[')) {
+    return;
+  }
+
+  try {
+    const payload = {
+      to: pushToken,
+      sound: 'default',
+      title: title || 'SoulShuffle Alert',
+      body: body || '',
+      data: data || {},
+      priority: 'high',
+      channelId: 'default',
+      _displayInForeground: true,
+    };
+
+    const response = await axios.post('https://exp.host/--/api/v2/push/send', payload, {
+      headers: {
+        'Accept': 'application/json',
+        'Accept-Encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      timeout: 6000,
+    });
+    console.log(`[NotificationService] Remote push sent successfully to ${pushToken.substring(0, 25)}...`, response.data);
+  } catch (pushErr) {
+    console.warn('[NotificationService] Expo push error:', pushErr.message);
   }
 };
 
@@ -60,13 +97,11 @@ const createNotification = async (userId, type, title, body, data = {}) => {
       return null;
     }
 
-    // 2. Push via Socket.io (real-time) — fire-and-forget, never crash
+    // 2. Push via Socket.io (real-time foreground) — fire-and-forget
     const io = getIoSafe();
     if (io) {
-      // Emit to the user's personal channel (userId as room name)
       io.to(`user:${userId}`).emit('new_notification', notif);
 
-      // Also emit updated unread count
       const { count } = await supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
@@ -76,11 +111,64 @@ const createNotification = async (userId, type, title, body, data = {}) => {
       io.to(`user:${userId}`).emit('notification_count', { unread_count: count || 0 });
     }
 
+    // 3. Send Remote Push Notification via Expo Push Service (for background / closed app)
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('preferences')
+        .eq('id', userId)
+        .single();
+
+      const pushToken = profile?.preferences?.push_token;
+      if (pushToken) {
+        // Fire-and-forget remote push to wake up device
+        sendExpoPushNotification(pushToken, title, body, { ...data, type });
+      }
+    } catch (pushLookupErr) {
+      console.warn('[NotificationService] Push token lookup failed:', pushLookupErr.message);
+    }
+
     return notif;
   } catch (err) {
     // Notifications should NEVER crash the calling service
     console.error('[NotificationService] Unexpected error:', err.message);
     return null;
+  }
+};
+
+// ─────────────────────────────────────────────────────────────
+// Save / Register Push Token for a User
+// ─────────────────────────────────────────────────────────────
+const savePushToken = async (userId, pushToken) => {
+  if (!pushToken || typeof pushToken !== 'string') return null;
+
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('preferences')
+      .eq('id', userId)
+      .single();
+
+    const currentPrefs = profile?.preferences || { theme: 'dark', notifications: true };
+    const updatedPrefs = { ...currentPrefs, push_token: pushToken };
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ preferences: updatedPrefs })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[NotificationService] Failed to save push token:', error.message);
+      throw error;
+    }
+
+    console.log(`[NotificationService] Saved push token for user ${userId}: ${pushToken.substring(0, 25)}...`);
+    return data;
+  } catch (err) {
+    console.error('[NotificationService] savePushToken error:', err.message);
+    throw err;
   }
 };
 
@@ -173,6 +261,8 @@ const deleteNotification = async (userId, notifId) => {
 
 module.exports = {
   createNotification,
+  savePushToken,
+  sendExpoPushNotification,
   getNotifications,
   getUnreadCount,
   markAsRead,

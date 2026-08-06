@@ -43,10 +43,23 @@ const deleteNotification = async (req, res, next) => {
   } catch (e) { next(e); }
 };
 
+// POST /api/v1/notifications/register-push-token
+const registerPushToken = async (req, res, next) => {
+  try {
+    const { pushToken } = req.body;
+    if (!pushToken) {
+      return res.status(400).json({ status: 'error', message: 'pushToken is required' });
+    }
+    await notifSvc.savePushToken(req.user.id, pushToken);
+    res.json({ status: 'success', message: 'Push token registered successfully.' });
+  } catch (e) { next(e); }
+};
+
 module.exports = {
   getNotifications,
   getUnreadCount,
   markAsRead,
   markAllAsRead,
   deleteNotification,
+  registerPushToken,
 };
