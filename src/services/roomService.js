@@ -14,6 +14,37 @@ const calculateExpiry = (expiryType) => {
     return date.toISOString();
 };
 
+const populateRoomNames = async (room) => {
+    if (!room) return null;
+    const hostId = room.host_id;
+    const partnerId = room.partner_id;
+
+    const idsToFetch = [hostId];
+    if (partnerId) idsToFetch.push(partnerId);
+
+    try {
+        const { data: profiles, error: profileError } = await supabase
+            .from('profiles')
+            .select('id, first_name')
+            .in('id', idsToFetch);
+
+        if (!profileError && profiles) {
+            const hostProfile = profiles.find(p => p.id === hostId);
+            const partnerProfile = partnerId ? profiles.find(p => p.id === partnerId) : null;
+            
+            room.host_name = hostProfile ? hostProfile.first_name : 'Host';
+            room.partner_name = partnerProfile ? partnerProfile.first_name : null;
+        } else {
+            room.host_name = 'Host';
+            room.partner_name = partnerId ? 'Partner' : null;
+        }
+    } catch (e) {
+        room.host_name = 'Host';
+        room.partner_name = partnerId ? 'Partner' : null;
+    }
+    return room;
+};
+
 const createRoom = async (hostId, expiryType = '7_DAYS') => {
     // Validate plan type — only 7_DAYS and 30_DAYS are supported
     if (!VALID_EXPIRY_TYPES.includes(expiryType)) {
@@ -49,18 +80,87 @@ const createRoom = async (hostId, expiryType = '7_DAYS') => {
         err.status = 400;
         throw err;
     }
-    return data;
+    return await populateRoomNames(data);
 };
 
 const joinRoom = async (partnerId, code) => {
-    // 1. Find room
-    const { data: room, error: findError } = await supabase
+    const rawCode = (code || '').toUpperCase().trim();
+    if (!rawCode) {
+        const err = new Error('Room code is required.');
+        err.status = 400;
+        throw err;
+    }
+
+    // Build all possible code variants for robust lookup
+    const codeVariants = new Set();
+    codeVariants.add(rawCode);
+
+    const alphanumeric = rawCode.replace(/[^A-Z0-9]/g, '');
+    if (alphanumeric) {
+        codeVariants.add(alphanumeric);
+        if (alphanumeric.length === 6) {
+            codeVariants.add(`SSF-${alphanumeric}`);
+            codeVariants.add(`ELV-${alphanumeric}`);
+        }
+        if (alphanumeric.startsWith('SSF') && alphanumeric.length >= 4) {
+            const suffix = alphanumeric.slice(3);
+            codeVariants.add(`SSF-${suffix}`);
+            codeVariants.add(`ELV-${suffix}`);
+            codeVariants.add(suffix);
+        }
+        if (alphanumeric.startsWith('ELV') && alphanumeric.length >= 4) {
+            const suffix = alphanumeric.slice(3);
+            codeVariants.add(`SSF-${suffix}`);
+            codeVariants.add(`ELV-${suffix}`);
+            codeVariants.add(suffix);
+        }
+    }
+
+    if (rawCode.startsWith('SSF-')) {
+        codeVariants.add(rawCode.replace(/^SSF-/, 'ELV-'));
+        codeVariants.add(rawCode.replace(/^SSF-/, ''));
+    } else if (rawCode.startsWith('ELV-')) {
+        codeVariants.add(rawCode.replace(/^ELV-/, 'SSF-'));
+        codeVariants.add(rawCode.replace(/^ELV-/, ''));
+    }
+
+    const variantsArray = Array.from(codeVariants);
+    console.log('[joinRoom] Searching for code variants:', variantsArray);
+
+    // 1. Find active/waiting room with any of these code variants
+    const { data: rooms, error: findError } = await supabase
         .from('rooms')
         .select('*')
-        .eq('code', code.toUpperCase())
-        .single();
+        .in('code', variantsArray)
+        .in('status', ['WAITING', 'ACTIVE'])
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-    if (findError || !room) {
+    const room = (rooms && rooms.length > 0) ? rooms[0] : null;
+
+    if (findError) {
+        console.error('[joinRoom] DB error finding room:', findError.message);
+        const err = new Error('Server error looking up room.');
+        err.status = 500;
+        throw err;
+    }
+
+    if (!room) {
+        // Check if the room exists but is COMPLETED or EXPIRED
+        const { data: pastRooms } = await supabase
+            .from('rooms')
+            .select('status')
+            .in('code', variantsArray)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        const pastRoom = pastRooms && pastRooms[0];
+        if (pastRoom?.status === 'COMPLETED' || pastRoom?.status === 'EXPIRED') {
+            const err = new Error('This room has ended or expired.');
+            err.status = 400;
+            throw err;
+        }
+
         const err = new Error('Invalid room code.');
         err.status = 404;
         throw err;
@@ -68,12 +168,12 @@ const joinRoom = async (partnerId, code) => {
 
     // 2. Check if host is joining their own room (just return it)
     if (room.host_id === partnerId) {
-        return room;
+        return await populateRoomNames(room);
     }
 
     // 3. Check if partner is already in this active room (just return it)
     if (room.partner_id === partnerId && room.status === 'ACTIVE') {
-        return room;
+        return await populateRoomNames(room);
     }
 
     // 4. Check if room is completed or expired
@@ -92,12 +192,21 @@ const joinRoom = async (partnerId, code) => {
 
     // 6. Check expiry
     if (new Date(room.expires_at) < new Date()) {
+        await supabase.from('rooms').update({ status: 'EXPIRED' }).eq('id', room.id);
         const err = new Error('Room has expired.');
         err.status = 400;
         throw err;
     }
 
-    // 5. Update room to ACTIVE
+    // 7. Archive any old WAITING rooms for the partner joining
+    await supabase
+        .from('rooms')
+        .update({ status: 'COMPLETED' })
+        .eq('host_id', partnerId)
+        .in('status', ['WAITING'])
+        .neq('id', room.id);
+
+    // 8. Update room to ACTIVE
     const { data: updatedRoom, error: updateError } = await supabase
         .from('rooms')
         .update({ partner_id: partnerId, status: 'ACTIVE' })
@@ -111,7 +220,7 @@ const joinRoom = async (partnerId, code) => {
         throw err;
     }
 
-    // 6. Automatically grant free cards for BOTH users based on plan type:
+    // 9. Automatically grant free cards for BOTH users based on plan type:
     //    7_DAYS  → 7 regular cards from 7-day master deck (no deflect)
     //    30_DAYS → 30 regular cards from 30-day master deck + 5 deflect cards
     await Promise.allSettled([
@@ -147,7 +256,7 @@ const joinRoom = async (partnerId, code) => {
         ),
     ]);
 
-    return updatedRoom;
+    return await populateRoomNames(updatedRoom);
 };
 
 const getActiveRoom = async (userId) => {
@@ -176,7 +285,7 @@ const getActiveRoom = async (userId) => {
         return null;
     }
 
-    return room;
+    return await populateRoomNames(room);
 };
 
 const leaveRoom = async (userId, roomId) => {
