@@ -34,7 +34,7 @@ const getActiveRoom = async (req, res, next) => {
     try {
         const room = await roomService.getActiveRoom(req.user.id);
         if (!room) {
-            return res.status(404).json({ status: 'success', data: { room: null }, message: 'No active room found.' });
+            return res.status(200).json({ status: 'success', data: { room: null }, message: 'No active room found.' });
         }
         res.status(200).json({ status: 'success', data: { room } });
     } catch (error) {

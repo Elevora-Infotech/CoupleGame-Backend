@@ -371,9 +371,7 @@ const leaveRoom = async (userId, roomId) => {
     }
 
     if (room.status === 'COMPLETED' || room.status === 'EXPIRED') {
-        const err = new Error(`Room is already ${room.status}.`);
-        err.status = 400;
-        throw err;
+        return { message: 'Room has already ended.' };
     }
 
     // Determine the other user to notify them
@@ -404,6 +402,24 @@ const leaveRoom = async (userId, roomId) => {
         .eq('room_id', roomId)
         .eq('is_used', false)
         .eq('expired', false);
+
+    // Emit live socket event so partner and current user dashboards update instantly
+    try {
+        const { getIo } = require('./socketService');
+        const io = getIo();
+        if (io) {
+            if (room.code) {
+                io.to(room.code).emit('room_left', { room_id: roomId, left_by: userId });
+                io.to(room.code).emit('partner_left', { room_id: roomId, left_by: userId });
+            }
+            if (otherUserId) {
+                io.to(`user:${otherUserId}`).emit('room_left', { room_id: roomId, left_by: userId });
+                io.to(`user:${otherUserId}`).emit('partner_left', { room_id: roomId, left_by: userId });
+            }
+        }
+    } catch (socketErr) {
+        console.warn('[leaveRoom] Socket emit error (non-fatal):', socketErr.message);
+    }
 
     // Notify the other user if they exist
     if (otherUserId) {
