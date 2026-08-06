@@ -508,7 +508,7 @@ const getRoomHistory = async (userId, roomId) => {
         .from('room_card_sends')
         .select(`
             id, room_id, sender_id, receiver_id, status, message, sent_at,
-            accepted_at, completed_at, deflected_at,
+            accepted_at, deflected_at, completed_by_receiver_at, confirmed_at, rejected_at,
             cards ( id, name, power_description, image_url, card_type, card_categories (name, theme_color) )
         `)
         .in('room_id', roomIds)
@@ -570,8 +570,9 @@ const getRoomHistory = async (userId, roomId) => {
                 status: (send.status || 'SENT').toUpperCase(),
                 sent_at: send.sent_at,
                 accepted_at: send.accepted_at,
-                completed_at: send.completed_at,
+                completed_at: send.completed_by_receiver_at || send.confirmed_at || null,
                 deflected_at: send.deflected_at,
+                rejected_at: send.rejected_at || null,
                 time: send.sent_at ? new Date(send.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
                 category: send.cards?.card_categories?.name || 'Dare',
                 theme_color: send.cards?.card_categories?.theme_color || '#e11d48',
