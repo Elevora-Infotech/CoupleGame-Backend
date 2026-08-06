@@ -439,10 +439,10 @@ const getRoomHistory = async (userId, roomId) => {
     let roomMap = new Map();
     let roomIds = [];
     
-    // 1. Fetch user's rooms with plain select (no FK join — same pattern as getActiveRoom)
+    // 1. Fetch user's rooms with plain select — no game_state (too large/slow)
     let roomQuery = supabase
         .from('rooms')
-        .select('id, code, status, created_at, host_id, partner_id, game_state');
+        .select('id, code, status, created_at, host_id, partner_id');
 
     if (roomId) {
         roomQuery = roomQuery.eq('id', roomId);
@@ -584,36 +584,7 @@ const getRoomHistory = async (userId, roomId) => {
         });
     }
 
-    // 7. Fallback to game_state challenge_history if room_card_sends was empty
-    if (historyItems.length === 0) {
-        rooms.forEach(r => {
-            const roomInfo = roomMap.get(r.id) || {};
-            const gsHistory = r.game_state?.challenge_history || [];
-            gsHistory.forEach(item => {
-                const isSentByMe = item.sender_id ? item.sender_id === userId : true;
-                historyItems.push({
-                    id: item.id || `hist_${Math.random()}`,
-                    room_id: r.id,
-                    room_code: roomInfo.code || 'GAME',
-                    room_status: roomInfo.status || 'ACTIVE',
-                    partner_name: roomInfo.partner_name || 'Partner',
-                    partner_avatar: roomInfo.partner_avatar || null,
-                    sender_id: item.sender_id || userId,
-                    sender_name: isSentByMe ? 'You' : roomInfo.partner_name,
-                    receiver_name: !isSentByMe ? 'You' : roomInfo.partner_name,
-                    is_sent_by_me: isSentByMe,
-                    status: (item.status || 'COMPLETED').toUpperCase(),
-                    sent_at: item.sent_at || r.created_at,
-                    time: item.time || (item.sent_at ? new Date(item.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently'),
-                    category: item.category || 'Dare',
-                    title: item.title || 'Dare Card',
-                    description: item.description || '',
-                    message: item.message || '',
-                    image: item.image || null
-                });
-            });
-        });
-    }
+    // No game_state fallback — history is sourced from room_card_sends only
 
     // Sort newest to oldest
     return historyItems.sort((a, b) => {
