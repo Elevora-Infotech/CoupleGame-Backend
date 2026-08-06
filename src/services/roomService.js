@@ -196,12 +196,15 @@ const joinRoom = async (partnerId, code) => {
         throw err;
     }
 
-    // 6. Check expiry
-    if (new Date(room.expires_at) < new Date()) {
-        await supabase.from('rooms').update({ status: 'EXPIRED' }).eq('id', room.id);
-        const err = new Error('Room has expired.');
-        err.status = 400;
-        throw err;
+    // 6. Check expiry safely
+    if (room.expires_at) {
+        const expiryTime = new Date(room.expires_at).getTime();
+        if (!isNaN(expiryTime) && expiryTime < Date.now()) {
+            await supabase.from('rooms').update({ status: 'EXPIRED' }).eq('id', room.id);
+            const err = new Error('Room has expired.');
+            err.status = 400;
+            throw err;
+        }
     }
 
     // 7. Archive any old WAITING rooms for the partner joining
@@ -292,29 +295,56 @@ const joinRoom = async (partnerId, code) => {
 };
 
 const getActiveRoom = async (userId) => {
-    const { data: rooms, error } = await supabase
+    // 1. Prioritize ACTIVE room where user is host or partner
+    const { data: activeRooms, error: activeErr } = await supabase
         .from('rooms')
         .select('*')
         .or(`host_id.eq.${userId},partner_id.eq.${userId}`)
-        .in('status', ['WAITING', 'ACTIVE'])
+        .eq('status', 'ACTIVE')
         .order('created_at', { ascending: false })
         .limit(1);
 
-    if (error) {
-        const err = new Error(error.message);
-        err.status = 400;
+    if (activeErr) {
+        console.error('[getActiveRoom] DB error querying active rooms:', activeErr.message);
+        const err = new Error(activeErr.message);
+        err.status = 500;
         throw err;
     }
 
-    if (!rooms || rooms.length === 0) {
+    let room = activeRooms && activeRooms.length > 0 ? activeRooms[0] : null;
+
+    // 2. If no ACTIVE room, check for a WAITING room
+    if (!room) {
+        const { data: waitingRooms, error: waitingErr } = await supabase
+            .from('rooms')
+            .select('*')
+            .or(`host_id.eq.${userId},partner_id.eq.${userId}`)
+            .eq('status', 'WAITING')
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        if (waitingErr) {
+            console.error('[getActiveRoom] DB error querying waiting rooms:', waitingErr.message);
+            const err = new Error(waitingErr.message);
+            err.status = 500;
+            throw err;
+        }
+
+        room = waitingRooms && waitingRooms.length > 0 ? waitingRooms[0] : null;
+    }
+
+    if (!room) {
         return null;
     }
 
-    const room = rooms[0];
-    if (new Date(room.expires_at) < new Date()) {
-        // Auto-expire
-        await supabase.from('rooms').update({ status: 'EXPIRED' }).eq('id', room.id);
-        return null;
+    // 3. Safe expiry check (only auto-expire if expires_at is a valid timestamp in past)
+    if (room.expires_at) {
+        const expiryTime = new Date(room.expires_at).getTime();
+        if (!isNaN(expiryTime) && expiryTime < Date.now()) {
+            console.log(`[getActiveRoom] Room ${room.id} expired at ${room.expires_at}`);
+            await supabase.from('rooms').update({ status: 'EXPIRED' }).eq('id', room.id);
+            return null;
+        }
     }
 
     return await populateRoomNames(room);
