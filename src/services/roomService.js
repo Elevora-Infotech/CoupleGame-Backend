@@ -435,27 +435,21 @@ const leaveRoom = async (userId, roomId) => {
     return { message: 'You have left the room.' };
 };
 
-// ─────────────────────────────────────────────────────────────
-// Get Room History for a User (Account-wide or specific room)
-// ─────────────────────────────────────────────────────────────
 const getRoomHistory = async (userId, roomId) => {
     let roomMap = new Map();
     let roomIds = [];
     
-    // 1. Fetch user's rooms (either specific roomId or all rooms user participated in)
+    // 1. Fetch user's rooms with plain select (no FK join — same pattern as getActiveRoom)
     let roomQuery = supabase
         .from('rooms')
-        .select(`
-            id, code, status, created_at,
-            host:profiles!rooms_host_id_fkey (id, first_name, avatar_url),
-            partner:profiles!rooms_partner_id_fkey (id, first_name, avatar_url),
-            game_state
-        `);
+        .select('id, code, status, created_at, host_id, partner_id, game_state');
 
     if (roomId) {
         roomQuery = roomQuery.eq('id', roomId);
     } else {
-        roomQuery = roomQuery.or(`host_id.eq.${userId},partner_id.eq.${userId}`).order('created_at', { ascending: false });
+        roomQuery = roomQuery
+            .or(`host_id.eq.${userId},partner_id.eq.${userId}`)
+            .order('created_at', { ascending: false });
     }
 
     const { data: rooms, error: roomErr } = await roomQuery;
@@ -465,37 +459,84 @@ const getRoomHistory = async (userId, roomId) => {
     }
     if (!rooms || rooms.length === 0) return [];
 
+    // 2. Collect all user IDs from rooms to fetch profiles in one batch
+    const allUserIds = new Set();
     rooms.forEach(r => {
-        const isHost = r.host?.id === userId;
-        const partner = isHost ? r.partner : r.host;
+        if (r.host_id) allUserIds.add(r.host_id);
+        if (r.partner_id) allUserIds.add(r.partner_id);
+        roomIds.push(r.id);
+    });
+
+    // 3. Fetch all profiles in one batch query (same as populateRoomNames)
+    const profileMap = new Map();
+    if (allUserIds.size > 0) {
+        try {
+            const { data: profiles, error: profileErr } = await supabase
+                .from('profiles')
+                .select('id, first_name, avatar_url')
+                .in('id', Array.from(allUserIds));
+            
+            if (!profileErr && profiles) {
+                profiles.forEach(p => profileMap.set(p.id, p));
+            } else if (profileErr) {
+                console.error('[getRoomHistory] Profiles fetch error:', profileErr);
+            }
+        } catch (e) {
+            console.error('[getRoomHistory] Profiles fetch exception:', e);
+        }
+    }
+
+    // 4. Build roomMap with real names from profileMap
+    rooms.forEach(r => {
+        const isHost = r.host_id === userId;
+        const partnerId = isHost ? r.partner_id : r.host_id;
+        const partnerProfile = partnerId ? profileMap.get(partnerId) : null;
+
         roomMap.set(r.id, {
             id: r.id,
             code: r.code,
             status: r.status,
             created_at: r.created_at,
-            partner_name: partner?.first_name || 'Partner',
-            partner_avatar: partner?.avatar_url || null,
+            partner_name: partnerProfile?.first_name || 'Partner',
+            partner_avatar: partnerProfile?.avatar_url || null,
             game_state: r.game_state
         });
-        roomIds.push(r.id);
     });
 
-    // 2. Fetch card sends across these rooms
+    // 5. Fetch card sends for these rooms (plain select, no FK join)
     const { data: sends, error: sendsErr } = await supabase
         .from('room_card_sends')
         .select(`
             id, room_id, sender_id, receiver_id, status, message, sent_at,
             accepted_at, completed_at, deflected_at,
-            sender:profiles!room_card_sends_sender_id_fkey (id, first_name, avatar_url),
-            receiver:profiles!room_card_sends_receiver_id_fkey (id, first_name, avatar_url),
             cards ( id, name, power_description, image_url, card_type, card_categories (name, theme_color) )
         `)
         .in('room_id', roomIds)
         .order('sent_at', { ascending: false })
-        .limit(100);
+        .limit(200);
         
     if (sendsErr) {
         console.error('[getRoomHistory] Card sends query error:', sendsErr);
+    }
+
+    // 6. Collect sender/receiver profile IDs we haven't fetched yet
+    if (Array.isArray(sends) && sends.length > 0) {
+        const missingIds = new Set();
+        sends.forEach(s => {
+            if (s.sender_id && !profileMap.has(s.sender_id)) missingIds.add(s.sender_id);
+            if (s.receiver_id && !profileMap.has(s.receiver_id)) missingIds.add(s.receiver_id);
+        });
+        if (missingIds.size > 0) {
+            try {
+                const { data: extraProfiles } = await supabase
+                    .from('profiles')
+                    .select('id, first_name, avatar_url')
+                    .in('id', Array.from(missingIds));
+                if (extraProfiles) extraProfiles.forEach(p => profileMap.set(p.id, p));
+            } catch (e) {
+                console.error('[getRoomHistory] Extra profiles fetch error:', e);
+            }
+        }
     }
 
     let historyItems = [];
@@ -504,8 +545,12 @@ const getRoomHistory = async (userId, roomId) => {
         historyItems = sends.map(send => {
             const roomInfo = roomMap.get(send.room_id) || {};
             const isSentByMe = send.sender_id === userId;
-            const senderName = send.sender?.first_name || (isSentByMe ? 'You' : (roomInfo.partner_name || 'Partner'));
-            const receiverName = send.receiver?.first_name || (!isSentByMe ? 'You' : (roomInfo.partner_name || 'Partner'));
+
+            const senderProfile = send.sender_id ? profileMap.get(send.sender_id) : null;
+            const receiverProfile = send.receiver_id ? profileMap.get(send.receiver_id) : null;
+
+            const senderName = senderProfile?.first_name || (isSentByMe ? 'You' : (roomInfo.partner_name || 'Partner'));
+            const receiverName = receiverProfile?.first_name || (!isSentByMe ? 'You' : (roomInfo.partner_name || 'Partner'));
 
             return {
                 id: send.id,
@@ -513,13 +558,13 @@ const getRoomHistory = async (userId, roomId) => {
                 room_code: roomInfo.code || 'GAME',
                 room_status: roomInfo.status || 'ACTIVE',
                 partner_name: roomInfo.partner_name || (isSentByMe ? receiverName : senderName),
-                partner_avatar: roomInfo.partner_avatar || (isSentByMe ? send.receiver?.avatar_url : send.sender?.avatar_url) || null,
+                partner_avatar: roomInfo.partner_avatar || (isSentByMe ? receiverProfile?.avatar_url : senderProfile?.avatar_url) || null,
                 sender_id: send.sender_id,
                 receiver_id: send.receiver_id,
                 sender_name: senderName,
                 receiver_name: receiverName,
-                sender_avatar: send.sender?.avatar_url || null,
-                receiver_avatar: send.receiver?.avatar_url || null,
+                sender_avatar: senderProfile?.avatar_url || null,
+                receiver_avatar: receiverProfile?.avatar_url || null,
                 is_sent_by_me: isSentByMe,
                 card_id: send.cards?.id,
                 status: (send.status || 'SENT').toUpperCase(),
@@ -539,7 +584,7 @@ const getRoomHistory = async (userId, roomId) => {
         });
     }
 
-    // 3. Fallback to game_state challenge_history for rooms if room_card_sends was empty
+    // 7. Fallback to game_state challenge_history if room_card_sends was empty
     if (historyItems.length === 0) {
         rooms.forEach(r => {
             const roomInfo = roomMap.get(r.id) || {};
