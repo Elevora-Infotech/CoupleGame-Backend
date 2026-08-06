@@ -447,8 +447,8 @@ const getRoomHistory = async (userId, roomId) => {
         .from('rooms')
         .select(`
             id, code, status, created_at,
-            host:users!rooms_host_id_fkey (id, name, avatar_url),
-            partner:users!rooms_partner_id_fkey (id, name, avatar_url),
+            host:profiles!rooms_host_id_fkey (id, first_name, avatar_url),
+            partner:profiles!rooms_partner_id_fkey (id, first_name, avatar_url),
             game_state
         `);
 
@@ -473,7 +473,7 @@ const getRoomHistory = async (userId, roomId) => {
             code: r.code,
             status: r.status,
             created_at: r.created_at,
-            partner_name: partner?.name || 'Partner',
+            partner_name: partner?.first_name || 'Partner',
             partner_avatar: partner?.avatar_url || null,
             game_state: r.game_state
         });
@@ -486,8 +486,8 @@ const getRoomHistory = async (userId, roomId) => {
         .select(`
             id, room_id, sender_id, receiver_id, status, message, sent_at,
             accepted_at, completed_at, deflected_at,
-            sender:users!room_card_sends_sender_id_fkey (id, name, avatar_url),
-            receiver:users!room_card_sends_receiver_id_fkey (id, name, avatar_url),
+            sender:profiles!room_card_sends_sender_id_fkey (id, first_name, avatar_url),
+            receiver:profiles!room_card_sends_receiver_id_fkey (id, first_name, avatar_url),
             cards ( id, name, power_description, image_url, card_type, card_categories (name, theme_color) )
         `)
         .in('room_id', roomIds)
@@ -504,8 +504,8 @@ const getRoomHistory = async (userId, roomId) => {
         historyItems = sends.map(send => {
             const roomInfo = roomMap.get(send.room_id) || {};
             const isSentByMe = send.sender_id === userId;
-            const senderName = send.sender?.name || (isSentByMe ? 'You' : (roomInfo.partner_name || 'Partner'));
-            const receiverName = send.receiver?.name || (!isSentByMe ? 'You' : (roomInfo.partner_name || 'Partner'));
+            const senderName = send.sender?.first_name || (isSentByMe ? 'You' : (roomInfo.partner_name || 'Partner'));
+            const receiverName = send.receiver?.first_name || (!isSentByMe ? 'You' : (roomInfo.partner_name || 'Partner'));
 
             return {
                 id: send.id,
