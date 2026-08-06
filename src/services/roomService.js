@@ -25,7 +25,7 @@ const populateRoomNames = async (room) => {
     try {
         const { data: profiles, error: profileError } = await supabase
             .from('profiles')
-            .select('id, first_name')
+            .select('id, first_name, avatar_url')
             .in('id', idsToFetch);
 
         if (!profileError && profiles) {
@@ -34,13 +34,19 @@ const populateRoomNames = async (room) => {
             
             room.host_name = hostProfile ? hostProfile.first_name : 'Host';
             room.partner_name = partnerProfile ? partnerProfile.first_name : null;
+            room.host_avatar = hostProfile ? hostProfile.avatar_url : null;
+            room.partner_avatar = partnerProfile ? partnerProfile.avatar_url : null;
         } else {
             room.host_name = 'Host';
             room.partner_name = partnerId ? 'Partner' : null;
+            room.host_avatar = null;
+            room.partner_avatar = null;
         }
     } catch (e) {
         room.host_name = 'Host';
         room.partner_name = partnerId ? 'Partner' : null;
+        room.host_avatar = null;
+        room.partner_avatar = null;
     }
     return room;
 };
@@ -256,7 +262,33 @@ const joinRoom = async (partnerId, code) => {
         ),
     ]);
 
-    return await populateRoomNames(updatedRoom);
+    const populated = await populateRoomNames(updatedRoom);
+
+    // ── Emit real-time Socket.io events so host screen updates instantly! ──
+    try {
+        const { getIo, emitToUser } = require('./socketService');
+        const ioInstance = getIo();
+        
+        const partnerJoinedPayload = {
+            room: populated,
+            partnerId,
+            partnerName: populated.partner_name,
+            partnerAvatar: populated.partner_avatar,
+            status: 'ACTIVE'
+        };
+
+        // Broadcast to room code channel and room UUID channel
+        ioInstance.to(room.code).emit('partner_joined', partnerJoinedPayload);
+        ioInstance.to(room.id).emit('partner_joined', partnerJoinedPayload);
+        
+        // Push directly to host's personal user socket channel
+        emitToUser(room.host_id, 'partner_joined', partnerJoinedPayload);
+        emitToUser(room.host_id, 'room_updated', partnerJoinedPayload);
+    } catch (socketErr) {
+        console.log('[joinRoom] Socket broadcast warning:', socketErr.message);
+    }
+
+    return populated;
 };
 
 const getActiveRoom = async (userId) => {
