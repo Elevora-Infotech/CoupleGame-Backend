@@ -17,8 +17,8 @@ const envSchema = z.object({
   SMTP_FROM: z.string().default('noreply@elevora.com'),
   JWT_ACCESS_SECRET: z.string().min(10),
   JWT_REFRESH_SECRET: z.string().min(10),
-  JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
-  JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+  JWT_ACCESS_EXPIRES_IN: z.string().default('30d'),
+  JWT_REFRESH_EXPIRES_IN: z.string().default('180d'),
 });
 
 const _env = envSchema.safeParse(process.env);
