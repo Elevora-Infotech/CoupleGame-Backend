@@ -66,12 +66,13 @@ const logPenalty = async ({
 // Returns { isBanned: bool, bannedUntil: ISO string | null }
 // Called by deckService.sendCard before allowing a send.
 // ─────────────────────────────────────────────────────────────
-const checkSendBan = async (userId) => {
+const checkSendBan = async (userId, roomId) => {
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('user_send_bans')
     .select('id, banned_until')
     .eq('user_id', userId)
+    .eq('room_id', roomId)
     .eq('is_active', true)
     .gt('banned_until', now)
     .order('banned_until', { ascending: false })
@@ -124,11 +125,12 @@ const resolveLiftedBans = async (userId) => {
 const applyNonAcceptancePenalty = async (sendRecord) => {
   const { id: sendId, room_id: roomId, receiver_id: receiverId } = sendRecord;
 
-  // 1. Find a random unused, non-expired card in receiver's deck
+  // 1. Find a random unused, non-expired card in receiver's deck FOR THIS SPECIFIC ROOM
   const { data: deckCards } = await supabase
     .from('user_card_deck')
     .select('id, card_id, cards(name)')
     .eq('user_id', receiverId)
+    .eq('room_id', roomId)
     .eq('is_used', false)
     .eq('expired', false);
 
@@ -236,11 +238,12 @@ const applyIncompletePenalty = async (sendRecord) => {
 //           3. null (triggers master pool bonus in caller)
 // ─────────────────────────────────────────────────────────────
 const findTransferableAsset = async (userId, roomId) => {
-  // Priority 1: random unused non-deflect card
+  // Priority 1: random unused non-deflect card in THIS ROOM
   const { data: regularCards } = await supabase
     .from('user_card_deck')
     .select('id, card_id, cards(name, deflect_action)')
     .eq('user_id', userId)
+    .eq('room_id', roomId)
     .eq('is_used', false)
     .eq('expired', false);
 

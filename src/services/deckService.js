@@ -181,7 +181,7 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
   await resolvePendingPenalties(senderId);
 
   // Check if sender is currently banned (Penalty 2)
-  const { isBanned, bannedUntil } = await checkSendBan(senderId);
+  const { isBanned, bannedUntil } = await checkSendBan(senderId, roomId);
   if (isBanned) {
     const until = new Date(bannedUntil).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
     throwError(`Something was started but left unfinished. Sending is paused until ${until}.`, 403);

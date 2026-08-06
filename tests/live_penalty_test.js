@@ -170,7 +170,7 @@ async function testP2_IncompleteCard() {
   ok('Penalty resolver ran.');
 
   // Verify ban exists
-  const { isBanned, bannedUntil } = await penaltyService.checkSendBan(receiverB);
+  const { isBanned, bannedUntil } = await penaltyService.checkSendBan(receiverB, room.id);
   if (isBanned) {
     ok(`P2 PASS: Receiver is banned from sending until ${new Date(bannedUntil).toLocaleString('en-IN')}. ✅`);
   } else {
