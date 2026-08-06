@@ -43,13 +43,15 @@ const getIoSafe = () => {
 // ─────────────────────────────────────────────────────────────
 const sendExpoPushNotification = async (pushToken, title, body, data = {}) => {
   if (!pushToken || typeof pushToken !== 'string') return;
-  if (!pushToken.startsWith('ExponentPushToken[') && !pushToken.startsWith('ExpoPushToken[')) {
+  const token = pushToken.trim();
+  if (!token.startsWith('ExponentPushToken[') && !token.startsWith('ExpoPushToken[')) {
+    console.warn(`[NotificationService] Invalid push token format: ${token}`);
     return;
   }
 
   try {
     const payload = {
-      to: pushToken,
+      to: token,
       sound: 'default',
       title: title || 'SoulShuffle Alert',
       body: body || '',
@@ -57,6 +59,7 @@ const sendExpoPushNotification = async (pushToken, title, body, data = {}) => {
       priority: 'high',
       channelId: 'default',
       _displayInForeground: true,
+      badge: 1,
     };
 
     const response = await axios.post('https://exp.host/--/api/v2/push/send', payload, {
@@ -65,11 +68,11 @@ const sendExpoPushNotification = async (pushToken, title, body, data = {}) => {
         'Accept-Encoding': 'gzip, deflate',
         'Content-Type': 'application/json',
       },
-      timeout: 6000,
+      timeout: 8000,
     });
-    console.log(`[NotificationService] Remote push sent successfully to ${pushToken.substring(0, 25)}...`, response.data);
+    console.log(`[NotificationService] Remote push sent successfully to ${token.substring(0, 25)}...`, response.data);
   } catch (pushErr) {
-    console.warn('[NotificationService] Expo push error:', pushErr.message);
+    console.warn('[NotificationService] Expo push error:', pushErr?.response?.data || pushErr.message);
   }
 };
 
@@ -97,7 +100,7 @@ const createNotification = async (userId, type, title, body, data = {}) => {
       return null;
     }
 
-    // 2. Push via Socket.io (real-time foreground) — fire-and-forget
+    // 2. Push via Socket.io (real-time foreground)
     const io = getIoSafe();
     if (io) {
       io.to(`user:${userId}`).emit('new_notification', notif);
@@ -119,10 +122,19 @@ const createNotification = async (userId, type, title, body, data = {}) => {
         .eq('id', userId)
         .single();
 
-      const pushToken = profile?.preferences?.push_token;
+      let pushToken = null;
+      if (profile?.preferences) {
+        let prefs = profile.preferences;
+        if (typeof prefs === 'string') {
+          try { prefs = JSON.parse(prefs); } catch {}
+        }
+        pushToken = prefs?.push_token;
+      }
+
       if (pushToken) {
-        // Fire-and-forget remote push to wake up device
-        sendExpoPushNotification(pushToken, title, body, { ...data, type });
+        await sendExpoPushNotification(pushToken, title, body, { ...data, type });
+      } else {
+        console.log(`[NotificationService] No push token found for user ${userId}`);
       }
     } catch (pushLookupErr) {
       console.warn('[NotificationService] Push token lookup failed:', pushLookupErr.message);
@@ -149,8 +161,11 @@ const savePushToken = async (userId, pushToken) => {
       .eq('id', userId)
       .single();
 
-    const currentPrefs = profile?.preferences || { theme: 'dark', notifications: true };
-    const updatedPrefs = { ...currentPrefs, push_token: pushToken };
+    let currentPrefs = profile?.preferences || { theme: 'dark', notifications: true };
+    if (typeof currentPrefs === 'string') {
+      try { currentPrefs = JSON.parse(currentPrefs); } catch {}
+    }
+    const updatedPrefs = { ...currentPrefs, push_token: pushToken.trim() };
 
     const { data, error } = await supabase
       .from('profiles')
