@@ -172,52 +172,66 @@ const resolveOverdueStatuses = async (userId) => {
 // Then marks card as used and creates the send record.
 // ─────────────────────────────────────────────────────────────
 const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
+  const t0 = performance.now();
   if (message && message.length > 200) {
     throwError('Message must be 200 characters or less.', 400);
   }
 
-  // Lazily resolve any overdue statuses + apply pending penalties
-  await resolveOverdueStatuses(senderId);
-  await resolvePendingPenalties(senderId);
+  // Non-blocking lazy cleanup for overdue statuses & lifted bans
+  setImmediate(async () => {
+    try {
+      await resolveOverdueStatuses(senderId);
+      await resolvePendingPenalties(senderId);
+    } catch (e) {
+      // background safety
+    }
+  });
+
+  const t1 = performance.now();
+  // Parallelize ALL safety & limit checks for ultra-fast validation (<150ms)
+  const [banCheck, todayCount, activeCount, cardRes, roomRes] = await Promise.all([
+    checkSendBan(senderId, roomId),
+    checkDailySendLimit(senderId, roomId),
+    checkActiveSendLimit(senderId, roomId),
+    supabase
+      .from('user_card_deck')
+      .select('id, user_id, card_id, is_used, expired, room_id')
+      .eq('id', deckCardId)
+      .single(),
+    supabase
+      .from('rooms')
+      .select('host_id, partner_id, status')
+      .eq('id', roomId)
+      .single()
+  ]);
+  const t2 = performance.now();
+  console.log(`[PERF] sendCard validations (Promise.all) took: ${(t2 - t1).toFixed(2)} ms`);
 
   // Check if sender is currently banned (Penalty 2)
-  const { isBanned, bannedUntil } = await checkSendBan(senderId, roomId);
-  if (isBanned) {
-    const until = new Date(bannedUntil).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  if (banCheck.isBanned) {
+    const until = new Date(banCheck.bannedUntil).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
     throwError(`Something was started but left unfinished. Sending is paused until ${until}.`, 403);
   }
 
   // Check daily limit for THIS room
-  const todayCount = await checkDailySendLimit(senderId, roomId);
   if (todayCount >= 3) {
     throwError('Daily limit reached. You can send a maximum of 3 cards per day. Resets at midnight UTC.', 429);
   }
 
   // Check active limit for THIS room
-  const activeCount = await checkActiveSendLimit(senderId, roomId);
   if (activeCount >= 2) {
     throwError('You already have 2 active cards. Finish or close one before sending another.', 429);
   }
 
   // Validate deck card
-  const { data: card, error: fetchErr } = await supabase
-    .from('user_card_deck')
-    .select('id, user_id, card_id, is_used, expired, room_id')
-    .eq('id', deckCardId)
-    .single();
-
+  const { data: card, error: fetchErr } = cardRes;
   if (fetchErr || !card) throwError('Card not found in your deck.', 404);
   if (card.user_id !== senderId) throwError('This card does not belong to you.', 403);
   if (card.is_used)              throwError('This card has already been used or sent.', 409);
   if (card.expired)              throwError('This card has expired.', 410);
 
-  // 3. Verify receiver and sender are the participants of this room
-  const { data: room, error: roomErr } = await supabase
-    .from('rooms')
-    .select('host_id, partner_id, status')
-    .eq('id', roomId)
-    .single();
-
+  // Validate room & participants
+  const { data: room, error: roomErr } = roomRes;
   if (roomErr || !room) {
     throwError('Room not found.', 404);
   }
@@ -229,53 +243,60 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
     throwError('Receiver is not in this room.', 400);
   }
 
-  // Mark deck card as used
-  const { error: useErr } = await supabase
-    .from('user_card_deck')
-    .update({ is_used: true, room_id: roomId, used_at: new Date().toISOString() })
-    .eq('id', deckCardId)
-    .eq('user_id', senderId);
-
-  if (useErr) throwError('Failed to mark card as used.', 500);
-
   // Compute deadlines
   const sentAt = new Date();
   const respondDeadline = new Date(sentAt.getTime() + 24 * 60 * 60 * 1000); // +24h
   const penaltyDeadline = new Date(sentAt.getTime() + 48 * 60 * 60 * 1000); // +48h
 
-  // Create the send record
-  const { data: sendRecord, error: sendErr } = await supabase
-    .from('room_card_sends')
-    .insert([{
-      room_id:          roomId,
-      sender_id:        senderId,
-      receiver_id:      receiverId,
-      deck_card_id:     deckCardId,
-      card_id:          card.card_id,
-      message:          message || null,
-      status:           'SENT',
-      respond_deadline: respondDeadline.toISOString(),
-      penalty_deadline: penaltyDeadline.toISOString(),
-    }])
-    .select(`
-      id, room_id, sender_id, receiver_id, message, sent_at, status,
-      respond_deadline, penalty_deadline,
-      cards ( id, name, power_description, card_type,
-              card_categories ( name, theme_color ) )
-    `)
-    .single();
+  const t3 = performance.now();
+  // Mark deck card as used AND insert send record concurrently for minimum latency
+  const [useRes, sendRes] = await Promise.all([
+    supabase
+      .from('user_card_deck')
+      .update({ is_used: true, room_id: roomId, used_at: sentAt.toISOString() })
+      .eq('id', deckCardId)
+      .eq('user_id', senderId),
+    supabase
+      .from('room_card_sends')
+      .insert([{
+        room_id:          roomId,
+        sender_id:        senderId,
+        receiver_id:      receiverId,
+        deck_card_id:     deckCardId,
+        card_id:          card.card_id,
+        message:          message || null,
+        status:           'SENT',
+        respond_deadline: respondDeadline.toISOString(),
+        penalty_deadline: penaltyDeadline.toISOString(),
+      }])
+      .select(`
+        id, room_id, sender_id, receiver_id, message, sent_at, status,
+        respond_deadline, penalty_deadline,
+        cards ( id, name, power_description, card_type,
+                card_categories ( name, theme_color ) )
+      `)
+      .single()
+  ]);
+  const t4 = performance.now();
+  console.log(`[PERF] sendCard writes (Promise.all) took: ${(t4 - t3).toFixed(2)} ms`);
 
-  if (sendErr) throwError(`Failed to create card send record: ${sendErr.message}`, 500);
+  if (useRes.error) throwError('Failed to mark card as used.', 500);
+  if (sendRes.error) throwError(`Failed to create card send record: ${sendRes.error.message}`, 500);
 
-  // ── Notify receiver: they received a card ────────────────────────
+  const sendRecord = sendRes.data;
+
+  // ── Notify receiver in background (non-blocking) ─────────────────
   const cardName = sendRecord.cards?.name || 'a card';
-  await createNotification(
+  createNotification(
     receiverId,
     'CARD_RECEIVED',
     '💫 You received a card!',
     `Your partner sent you "${cardName}". Tap to view and respond.`,
     { send_id: sendRecord.id, card_id: sendRecord.cards?.id, room_id: roomId }
-  );
+  ).catch(() => {});
+
+  const t5 = performance.now();
+  console.log(`[PERF] sendCard total time: ${(t5 - t0).toFixed(2)} ms`);
 
   return sendRecord;
 };
