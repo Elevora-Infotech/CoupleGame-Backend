@@ -222,14 +222,12 @@ const refresh = async ({ refreshToken }) => {
     throw error;
   }
 
-  // Generate new rotated tokens
+  // Generate new rotated access token only
   const newAccessToken = generateAccessToken(user.id);
-  const newRefreshToken = generateRefreshToken(user.id);
+  // Do NOT rotate the refresh token, this allows users to stay logged in across multiple devices
+  // or on reinstall/reopen if network errors occur. The refresh token still expires eventually.
 
-  // Save the new rotated refresh token in the database
-  await userModel.updateUser(user.id, { refresh_token: newRefreshToken });
-
-  return { accessToken: newAccessToken, refreshToken: newRefreshToken };
+  return { accessToken: newAccessToken, refreshToken: refreshToken };
 };
 
 /**
