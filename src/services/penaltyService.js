@@ -387,18 +387,20 @@ const rejectCard = async (receiverId, sendId) => {
 // Checks for cards that have crossed penalty thresholds and
 // applies consequences only once (idempotent via status check).
 // ─────────────────────────────────────────────────────────────
-const resolvePendingPenalties = async (userId) => {
+const resolvePendingPenalties = async (userId, roomId = null) => {
   const now = new Date().toISOString();
 
   // ── Penalty 1: PENALTY status cards (non-acceptance) ──────
   // room_card_sends lazily moves SENT/WAITING → PENALTY in resolveOverdueStatuses.
   // We pick up those newly-penalized records and apply the card-removal consequence.
-  const { data: newPenalties } = await supabase
+  let p1Query = supabase
     .from('room_card_sends')
     .select('id, room_id, sender_id, receiver_id, penalty_triggered_at, status')
     .eq('receiver_id', userId)
     .eq('status', 'PENALTY')
     .is('penalty_triggered_at', null); // not yet processed by penalty engine
+  if (roomId) p1Query = p1Query.eq('room_id', roomId);
+  const { data: newPenalties } = await p1Query;
 
   if (newPenalties?.length) {
     for (const send of newPenalties) {
@@ -413,13 +415,15 @@ const resolvePendingPenalties = async (userId) => {
   }
 
   // ── Penalty 2: IN_PROGRESS cards past completion_deadline ─
-  const { data: overdueInProgress } = await supabase
+  let p2Query = supabase
     .from('room_card_sends')
     .select('id, room_id, sender_id, receiver_id, completion_deadline, status')
     .eq('receiver_id', userId)
     .eq('status', 'IN_PROGRESS')
     .not('completion_deadline', 'is', null)
     .lt('completion_deadline', now);
+  if (roomId) p2Query = p2Query.eq('room_id', roomId);
+  const { data: overdueInProgress } = await p2Query;
 
   if (overdueInProgress?.length) {
     for (const send of overdueInProgress) {
@@ -433,7 +437,7 @@ const resolvePendingPenalties = async (userId) => {
 // ─────────────────────────────────────────────────────────────
 const getPenaltyLog = async (userId, roomId) => {
   // First resolve any pending penalties for this user
-  await resolvePendingPenalties(userId);
+  await resolvePendingPenalties(userId, roomId);
 
   const { data, error } = await supabase
     .from('penalty_log')

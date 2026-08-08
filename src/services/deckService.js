@@ -137,24 +137,28 @@ const checkActiveSendLimit = async (userId, roomId) => {
 // Called on card fetch — if deadline has passed, update status.
 // Avoids needing a background cron job.
 // ─────────────────────────────────────────────────────────────
-const resolveOverdueStatuses = async (userId) => {
+const resolveOverdueStatuses = async (userId, roomId = null) => {
   const now = new Date().toISOString();
 
   // SENT → WAITING (respond_deadline passed)
-  await supabase
+  let q1 = supabase
     .from('room_card_sends')
     .update({ status: 'WAITING' })
     .eq('sender_id', userId)
     .eq('status', 'SENT')
     .lt('respond_deadline', now);
+  if (roomId) q1 = q1.eq('room_id', roomId);
+  await q1;
 
   // SENT/WAITING → PENALTY (penalty_deadline passed)
-  await supabase
+  let q2 = supabase
     .from('room_card_sends')
     .update({ status: 'PENALTY', penalty_triggered_at: now })
     .eq('sender_id', userId)
     .in('status', ['SENT', 'WAITING'])
     .lt('penalty_deadline', now);
+  if (roomId) q2 = q2.eq('room_id', roomId);
+  await q2;
 
   // Lazily resolve any lifted bans and notify the user
   await resolveLiftedBans(userId);
@@ -180,8 +184,8 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
   // Non-blocking lazy cleanup for overdue statuses & lifted bans
   setImmediate(async () => {
     try {
-      await resolveOverdueStatuses(senderId);
-      await resolvePendingPenalties(senderId);
+      await resolveOverdueStatuses(senderId, roomId);
+      await resolvePendingPenalties(senderId, roomId);
     } catch (e) {
       // background safety
     }
@@ -561,7 +565,7 @@ const getCardSendHistory = async (userId, roomId) => {
 // Frontend uses this to decide whether to show/disable the send button.
 // ─────────────────────────────────────────────────────────────
 const getSendLimits = async (userId, roomId) => {
-  await resolveOverdueStatuses(userId);
+  await resolveOverdueStatuses(userId, roomId);
   const todayCount  = await checkDailySendLimit(userId, roomId);
   const activeCount = await checkActiveSendLimit(userId, roomId);
   return {
