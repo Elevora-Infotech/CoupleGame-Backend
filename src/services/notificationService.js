@@ -114,31 +114,31 @@ const createNotification = async (userId, type, title, body, data = {}) => {
       io.to(`user:${userId}`).emit('notification_count', { unread_count: count || 0 });
     }
 
-    // 3. Send Remote Push Notification via Expo Push Service (for background / closed app)
-    try {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('preferences')
-        .eq('id', userId)
-        .single();
+    // 3. Send Remote Push Notification via Expo Push Service in BACKGROUND (non-blocking)
+    setImmediate(async () => {
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('preferences')
+          .eq('id', userId)
+          .single();
 
-      let pushToken = null;
-      if (profile?.preferences) {
-        let prefs = profile.preferences;
-        if (typeof prefs === 'string') {
-          try { prefs = JSON.parse(prefs); } catch {}
+        let pushToken = null;
+        if (profile?.preferences) {
+          let prefs = profile.preferences;
+          if (typeof prefs === 'string') {
+            try { prefs = JSON.parse(prefs); } catch {}
+          }
+          pushToken = prefs?.push_token;
         }
-        pushToken = prefs?.push_token;
-      }
 
-      if (pushToken) {
-        await sendExpoPushNotification(pushToken, title, body, { ...data, type });
-      } else {
-        console.log(`[NotificationService] No push token found for user ${userId}`);
+        if (pushToken) {
+          await sendExpoPushNotification(pushToken, title, body, { ...data, type });
+        }
+      } catch (pushLookupErr) {
+        // silently fallback in background
       }
-    } catch (pushLookupErr) {
-      console.warn('[NotificationService] Push token lookup failed:', pushLookupErr.message);
-    }
+    });
 
     return notif;
   } catch (err) {
