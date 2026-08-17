@@ -84,9 +84,12 @@ const selectFromMasterDeck = async (userId, deckId, count) => {
     return shuffle(oldCards).slice(0, count).map(r => r.card_id);
   }
 
+  // Cap count to pool size — can never give more cards than are in the pool
+  const effectiveCount = Math.min(count, pool.length);
+
   // 80/20 split
-  const targetNew = Math.ceil(count * 0.80);
-  const targetOld = count - targetNew;
+  const targetNew = Math.ceil(effectiveCount * 0.80);
+  const targetOld = effectiveCount - targetNew;
 
   const shuffledNew = shuffle(newCards);
   const shuffledOld = shuffle(oldCards);
@@ -96,15 +99,26 @@ const selectFromMasterDeck = async (userId, deckId, count) => {
 
   let result = [...selectedNew, ...selectedOld];
 
-  // Fill any gap with extra new cards
-  if (result.length < count) {
-    const gap   = count - result.length;
-    const extra = shuffledNew.slice(targetNew, targetNew + gap);
-    result = [...result, ...extra];
+  // ── Gap Fill (Step 1): try extra NEW cards first ──────────────
+  if (result.length < effectiveCount) {
+    const gap      = effectiveCount - result.length;
+    const extraNew = shuffledNew.slice(selectedNew.length, selectedNew.length + gap);
+    result = [...result, ...extraNew];
   }
 
-  // Trim if we somehow have too many (safety net)
-  return result.slice(0, count).map(r => r.card_id);
+  // ── Gap Fill (Step 2): fill remaining gap with OLD cards ──────
+  // This handles the case where the user has already received most
+  // cards from this pool (returning user) and new cards are exhausted.
+  if (result.length < effectiveCount) {
+    const stillNeeded = effectiveCount - result.length;
+    const usedOldCount = selectedOld.length;
+    const extraOld = shuffledOld.slice(usedOldCount, usedOldCount + stillNeeded);
+    result = [...result, ...extraOld];
+  }
+
+  // Final safety trim
+  return result.slice(0, effectiveCount).map(r => r.card_id);
+
 };
 
 // ─────────────────────────────────────────────────────────────
