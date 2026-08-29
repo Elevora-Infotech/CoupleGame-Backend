@@ -300,20 +300,37 @@ const awardFromMasterPool = async (userId, roomId) => {
 // Transfers an asset from receiver to sender.
 // ─────────────────────────────────────────────────────────────
 const rejectCard = async (receiverId, sendId) => {
-  // 1. Fetch the send record — verify receiver and status
-  const { data: send, error: sendErr } = await supabase
+  // 1. Fetch the exact current status of the card to give a specific error if it fails
+  const { data: existingCard, error: fetchErr } = await supabase
+    .from('room_card_sends')
+    .select('status, receiver_id')
+    .eq('id', sendId)
+    .single();
+
+  if (fetchErr || !existingCard) {
+    throwError('Card not found. It may have been deleted or the ID is invalid.', 404);
+  }
+
+  if (existingCard.receiver_id !== receiverId) {
+    throwError('This card was not sent to you, so you cannot reject it.', 403);
+  }
+
+  // Handle specific statuses with clear errors
+  const REJECTABLE = ['SENT', 'WAITING'];
+  if (!REJECTABLE.includes(existingCard.status)) {
+    if (existingCard.status === 'REJECTED') {
+      throwError('You have already rejected this card.', 400);
+    } else {
+      throwError(`Cannot reject card. It is already marked as ${existingCard.status.toLowerCase()}.`, 409);
+    }
+  }
+
+  // Fetch full details now that validation passed
+  const { data: send } = await supabase
     .from('room_card_sends')
     .select('id, room_id, sender_id, receiver_id, status')
     .eq('id', sendId)
-    .eq('receiver_id', receiverId)
     .single();
-
-  if (sendErr || !send) throwError('Card not found or not yours to reject.', 404);
-
-  const REJECTABLE = ['SENT', 'WAITING'];
-  if (!REJECTABLE.includes(send.status)) {
-    throwError(`Cannot reject a card with status "${send.status}". Only SENT or WAITING cards can be rejected.`, 409);
-  }
 
   const { sender_id: senderId, room_id: roomId } = send;
 

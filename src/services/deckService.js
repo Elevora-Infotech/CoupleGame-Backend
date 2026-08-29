@@ -311,6 +311,30 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
 // Receiver also has a max 2 active cards limit (cards IN_PROGRESS they received)
 // ─────────────────────────────────────────────────────────────
 const acceptCard = async (receiverId, sendId) => {
+  // First fetch the exact current status of the card to give a specific error if it fails
+  const { data: existingCard, error: fetchErr } = await supabase
+    .from('room_card_sends')
+    .select('status, receiver_id')
+    .eq('id', sendId)
+    .single();
+
+  if (fetchErr || !existingCard) {
+    throwError('Card not found.', 404);
+  }
+
+  if (existingCard.receiver_id !== receiverId) {
+    throwError('This card was not sent to you.', 403);
+  }
+
+  // Handle specific statuses with clear errors to solve the "Double Tap" and "Ghost Expiry" bugs
+  if (existingCard.status === 'IN_PROGRESS') {
+    throwError('You have already accepted this card.', 400); 
+  } else if (existingCard.status === 'PENALTY') {
+    throwError('Too late! This card has already expired and a penalty was applied.', 410);
+  } else if (existingCard.status !== 'SENT' && existingCard.status !== 'WAITING') {
+    throwError(`Cannot accept card. It is already marked as ${existingCard.status.toLowerCase()}.`, 400);
+  }
+
   // Check receiver's own active accepted cards
   const { count } = await supabase
     .from('room_card_sends')
@@ -322,6 +346,7 @@ const acceptCard = async (receiverId, sendId) => {
     throwError('You already have 2 active cards in progress. Complete or close one first.', 429);
   }
 
+  // Perform the actual update now that it is validated
   const { data, error } = await supabase
     .from('room_card_sends')
     .update({
@@ -331,15 +356,13 @@ const acceptCard = async (receiverId, sendId) => {
       completion_deadline: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
     })
     .eq('id', sendId)
-    .eq('receiver_id', receiverId)
-    .in('status', ['SENT', 'WAITING'])  // can only accept if not yet terminal
     .select(`
       id, room_id, sender_id, receiver_id, status, accepted_at, message,
       cards ( id, name, power_description, card_type )
     `)
     .single();
 
-  if (error || !data) throwError('Send record not found, already actioned, or not yours to accept.', 404);
+  if (error || !data) throwError('Failed to accept card.', 500);
 
   // ── Notify sender: their card was accepted ───────────────────────
   const cardName = data.cards?.name || 'your card';
