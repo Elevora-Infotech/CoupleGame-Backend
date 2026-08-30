@@ -283,7 +283,7 @@ const awardFromMasterPool = async (userId, roomId) => {
       is_used:  false,
       expired:  false,
     }])
-    .select('id, card_id, cards(name)')
+    .select('id, card_id, cards(name, image_url, category, deflect_action)')
     .single();
 
   if (error) {
@@ -356,7 +356,7 @@ const rejectCard = async (receiverId, sendId) => {
         expired:  false,
       })
       .eq('id', assetCard.id)
-      .select('id, card_id, cards(name, deflect_action)')
+      .select('id, card_id, cards(name, image_url, category, deflect_action)')
       .single();
     transferredCard = transferred;
   } else {
@@ -374,15 +374,25 @@ const rejectCard = async (receiverId, sendId) => {
 
   console.log(`[PenaltyService] P3 applied: rejection by ${receiverId}. Asset (${source}) transferred to ${senderId}`);
 
-  // ── Notify original sender: their card was rejected + they received an asset ──
+  // 🔔 Notify original sender: their card was rejected + they received an asset 🔔
   await createNotification(
     senderId,
-    'CARD_REJECTED',
-    '🗑️ Card Rejected',
+    transferredCard ? 'PENALTY_CARD_STOLEN' : 'CARD_REJECTED',
+    transferredCard ? '🎁 Penalty Gift Received!' : '💔 Card Rejected',
     transferredCard
       ? `Your partner rejected your card. As compensation, a card has been transferred to you.`
       : `Your partner rejected your card.`,
-    { send_id: sendId, room_id: send.room_id }
+    { 
+      send_id: sendId, 
+      room_id: send.room_id,
+      ...(transferredCard ? {
+        id: transferredCard.id,
+        name: transferredCard.cards?.name || transferredCard.cards?.title,
+        image_url: transferredCard.cards?.image_url,
+        category: transferredCard.cards?.category,
+        deflect_action: transferredCard.cards?.deflect_action
+      } : {})
+    }
   );
 
   return {
