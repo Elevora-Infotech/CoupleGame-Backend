@@ -283,7 +283,7 @@ const awardFromMasterPool = async (userId, roomId) => {
       is_used:  false,
       expired:  false,
     }])
-    .select('id, card_id, cards(name, image_url, category, deflect_action)')
+    .select('id, card_id, cards(name, image_url, card_categories(name), deflect_action)')
     .single();
 
   if (error) {
@@ -356,7 +356,7 @@ const rejectCard = async (receiverId, sendId) => {
         expired:  false,
       })
       .eq('id', assetCard.id)
-      .select('id, card_id, cards(name, image_url, category, deflect_action)')
+      .select('id, card_id, cards(name, image_url, card_categories(name), deflect_action)')
       .single();
     transferredCard = transferred;
   } else {
