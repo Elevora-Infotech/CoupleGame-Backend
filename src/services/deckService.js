@@ -7,7 +7,7 @@ const { createNotification } = require('./notificationService');
  * @desc   User card deck management + Card Game Engine.
  *
  * CARD GAME ENGINE RULES:
- *  - Sender can send max 3 cards per day (resets midnight UTC)
+ *  - Sender can send max 2 cards per day (resets midnight UTC)
  *  - Sender can have max 2 active (non-terminal) cards at once
  *  - Receiver has 24h to respond — then card moves to WAITING
  *  - 48h total no action — PENALTY triggered
@@ -93,7 +93,7 @@ const playCard = async (userId, deckCardId, roomId) => {
 
 // ─────────────────────────────────────────────────────────────
 // CARD GAME ENGINE — HELPER: Check daily send limit
-// Max 3 sends per day per user. Resets at midnight UTC.
+// Max 2 sends per day per user. Resets at midnight UTC.
 // ─────────────────────────────────────────────────────────────
 const checkDailySendLimit = async (userId, roomId) => {
   const todayMidnightUTC = new Date();
@@ -168,7 +168,7 @@ const resolveOverdueStatuses = async (userId, roomId = null) => {
 // CARD GAME ENGINE — Send a Card to Partner
 //
 // Validates:
-//  - Daily limit (max 3 per day)
+//  - Daily limit (max 2 per day)
 //  - Active limit (max 2 active at once)
 //  - Card belongs to sender and is unused/unexpired
 //  - Receiver is in the same room
@@ -218,8 +218,8 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
   }
 
   // Check daily limit for THIS room
-  if (todayCount >= 3) {
-    throwError('Daily limit reached. You can send a maximum of 3 cards per day. Resets at midnight UTC.', 429);
+  if (todayCount >= 2) {
+    throwError('Daily limit reached. You can send a maximum of 2 cards per day. Resets at midnight UTC.', 429);
   }
 
   // Check active limit for THIS room
@@ -593,12 +593,12 @@ const getSendLimits = async (userId, roomId) => {
   const activeCount = await checkActiveSendLimit(userId, roomId);
   return {
     daily_sent:       todayCount,
-    daily_limit:      3,
-    daily_remaining:  Math.max(0, 3 - todayCount),
+    daily_limit:      2,
+    daily_remaining:  Math.max(0, 2 - todayCount),
     active_count:     activeCount,
     active_limit:     2,
     active_remaining: Math.max(0, 2 - activeCount),
-    can_send:         todayCount < 3 && activeCount < 2,
+    can_send:         todayCount < 2 && activeCount < 2,
   };
 };
 
