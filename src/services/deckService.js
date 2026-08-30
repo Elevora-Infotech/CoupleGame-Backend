@@ -532,7 +532,8 @@ const markCardSeen = async (receiverId, sendId) => {
 // CARD GAME ENGINE — Get Card Send History for a Room
 // ─────────────────────────────────────────────────────────────
 const getCardSendHistory = async (userId, roomId) => {
-  await resolveOverdueStatuses(userId); // lazily update before returning
+  await resolveOverdueStatuses(userId, roomId); // lazily update before returning
+  await resolvePendingPenalties(userId, roomId);
 
   // ── CARD_DEADLINE_WARN: warn receiver if card expires within 4h ──
   const fourHoursFromNow = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
@@ -589,6 +590,7 @@ const getCardSendHistory = async (userId, roomId) => {
 // ─────────────────────────────────────────────────────────────
 const getSendLimits = async (userId, roomId) => {
   await resolveOverdueStatuses(userId, roomId);
+  await resolvePendingPenalties(userId, roomId);
   const todayCount  = await checkDailySendLimit(userId, roomId);
   const activeCount = await checkActiveSendLimit(userId, roomId);
   return {
