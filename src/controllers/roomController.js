@@ -1,5 +1,6 @@
 const roomService = require('../services/roomService');
 const { getIo } = require('../services/socketService');
+const { createNotification } = require('../services/notificationService');
 
 const createRoom = async (req, res, next) => {
     try {
@@ -84,6 +85,21 @@ const coinFlip = async (req, res, next) => {
             getIo().to(room.id).emit('coin_flip_result', payload);
         } catch (e) {
             console.error('[Socket] emit coin_flip_result failed:', e.message);
+        }
+
+        // Send push notification to the partner
+        if (partnerId) {
+            try {
+                await createNotification(
+                    partnerId,
+                    'COIN_TOSS',
+                    '🪙 Coin Toss!',
+                    `Your partner flipped the coin for: ${reason}`,
+                    { room_id: room.id, chosen_side: chosen_side.toUpperCase(), result }
+                );
+            } catch (err) {
+                console.error('[Push Notification] Failed to send coin toss notification:', err.message);
+            }
         }
         
         // No database storage required per user request
