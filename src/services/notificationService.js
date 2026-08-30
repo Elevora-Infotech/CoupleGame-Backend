@@ -198,6 +198,7 @@ const getNotifications = async (userId, { page = 1, limit = 20 } = {}) => {
     .from('notifications')
     .select('id, type, title, body, data, is_read, created_at', { count: 'exact' })
     .eq('user_id', userId)
+    .order('is_read', { ascending: true })
     .order('created_at', { ascending: false })
     .range(from, to);
 
