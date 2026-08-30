@@ -61,7 +61,24 @@ const getAvailableCards = async (userId, roomId) => {
     .order('acquired_at', { ascending: false });
 
   if (error) throwError(error.message, 400);
-  return data;
+
+  // Fetch penalty logs to identify which cards were acquired as penalty gifts
+  const { data: penaltyGifts } = await supabase
+    .from('penalty_log')
+    .select('card_transferred_id')
+    .eq('room_id', roomId)
+    .not('card_transferred_id', 'is', null);
+
+  const transferredCardIds = new Set(penaltyGifts?.map(p => p.card_transferred_id) || []);
+
+  const modifiedData = data.map(card => {
+    if (transferredCardIds.has(card.deck_card_id)) {
+      return { ...card, category_name: 'Penalty Rewards' };
+    }
+    return card;
+  });
+
+  return modifiedData;
 };
 
 // ─────────────────────────────────────────────────────────────
