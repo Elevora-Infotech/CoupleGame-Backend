@@ -294,7 +294,13 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
         id, room_id, sender_id, receiver_id, message, sent_at, status,
         respond_deadline, penalty_deadline, completion_deadline,
         cards ( id, name, power_description, card_type,
-                card_categories ( name, theme_color ) )
+                card_categories ( name, theme_color ) ),
+        penalty_log (
+          id, penalty_type,
+          user_card_deck!penalty_log_card_transferred_id_fkey (
+            cards ( name )
+          )
+        )
       `)
       .single()
   ]);
@@ -586,13 +592,19 @@ const getCardSendHistory = async (userId, roomId) => {
   const { data, error } = await supabase
     .from('room_card_sends')
     .select(`
-      id, room_id, sender_id, receiver_id, message, status, is_seen,
-      sent_at, accepted_at, deflected_at, completed_by_receiver_at,
-      confirmed_at, penalty_triggered_at, reminder_sent_at, seen_at,
-      respond_deadline, penalty_deadline, completion_deadline,
-      cards ( id, name, power_description, card_type,
-              card_categories ( name, theme_color ) )
-    `)
+        id, room_id, sender_id, receiver_id, message, status, is_seen,
+        sent_at, accepted_at, deflected_at, completed_by_receiver_at,
+        confirmed_at, penalty_triggered_at, reminder_sent_at, seen_at,
+        respond_deadline, penalty_deadline, completion_deadline,
+        cards ( id, name, power_description, card_type,
+                card_categories ( name, theme_color ) ),
+        penalty_log (
+          id, penalty_type,
+          user_card_deck!penalty_log_card_transferred_id_fkey (
+            cards ( name )
+          )
+        )
+      `)
     .eq('room_id', roomId)
     .or(`sender_id.eq.${userId},receiver_id.eq.${userId}`)
     .order('sent_at', { ascending: false });
