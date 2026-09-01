@@ -509,7 +509,13 @@ const getRoomHistory = async (userId, roomId) => {
         .select(`
             id, room_id, sender_id, receiver_id, status, message, sent_at,
             accepted_at, deflected_at, completed_by_receiver_at, confirmed_at, rejected_at,
-            cards ( id, name, power_description, image_url, card_type, card_categories (name, theme_color) )
+            cards ( id, name, power_description, image_url, card_type, card_categories (name, theme_color) ),
+            penalty_log (
+              id, penalty_type,
+              user_card_deck!penalty_log_card_transferred_id_fkey (
+                cards ( name )
+              )
+            )
         `)
         .in('room_id', roomIds)
         .order('sent_at', { ascending: false })
