@@ -432,7 +432,8 @@ const markCardComplete = async (receiverId, sendId) => {
   const { data, error } = await supabase
     .from('room_card_sends')
     .update({
-      status:                  'COMPLETED_BY_RECEIVER',
+        status:                  'COMPLETED',
+        confirmed_at: new Date().toISOString(),
       completed_by_receiver_at: new Date().toISOString(),
     })
     .eq('id', sendId)
