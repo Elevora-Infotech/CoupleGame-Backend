@@ -586,7 +586,8 @@ const getRoomHistory = async (userId, roomId) => {
                 title: send.cards?.name || 'Card Dare',
                 description: send.cards?.power_description || '',
                 message: send.message || '',
-                image: send.cards?.image_url || null
+                image: send.cards?.image_url || null,
+                penalty_log: send.penalty_log || []
             };
         });
     }
