@@ -112,6 +112,21 @@ const updateProfile = async (userId, updateData) => {
       .eq('id', userId);
   }
 
+  // Notify partner if they are in an active room
+  try {
+    const { getActiveRoom } = require('./roomService');
+    const { emitToUser } = require('./socketService');
+    const activeRoom = await getActiveRoom(userId);
+    if (activeRoom && activeRoom.status === 'ACTIVE') {
+      const partnerId = activeRoom.host_id === userId ? activeRoom.partner_id : activeRoom.host_id;
+      if (partnerId && avatar_url) {
+        emitToUser(partnerId, 'partner_avatar_updated', { avatar_url });
+      }
+    }
+  } catch (e) {
+    console.error('[ProfileService] Failed to notify partner of avatar update', e.message);
+  }
+
   return profileData;
 };
 
