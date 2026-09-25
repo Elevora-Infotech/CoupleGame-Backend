@@ -425,7 +425,7 @@ const leaveRoom = async (userId, roomId) => {
     if (otherUserId) {
         await createNotification(
             otherUserId,
-            'ROOM_LEFT',
+            'PARTNER_LEFT_ROOM',
             'Partner Left',
             'Your partner has left the room. The game has ended.',
             { room_id: roomId }
@@ -602,10 +602,80 @@ const getRoomHistory = async (userId, roomId) => {
     });
 };
 
+// ─────────────────────────────────────────────────────────────
+// Extend Room Expiry
+// ─────────────────────────────────────────────────────────────
+const extendRoom = async (userId, roomId, days = 7) => {
+    const { data: room, error } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('id', roomId)
+        .single();
+    
+    if (error || !room) throwError('Room not found.', 404);
+    if (room.host_id !== userId && room.partner_id !== userId) throwError('Not authorized.', 403);
+
+    const newExpiry = new Date(Math.max(Date.now(), new Date(room.expires_at || Date.now()).getTime()) + days * 24 * 60 * 60 * 1000).toISOString();
+
+    await supabase
+        .from('rooms')
+        .update({ expires_at: newExpiry, status: 'ACTIVE' })
+        .eq('id', roomId);
+
+    const { createNotification } = require('./notificationService');
+    const notifyIds = [room.host_id, room.partner_id].filter(Boolean);
+    for (const id of notifyIds) {
+        await createNotification(
+            id,
+            'ROOM_EXTENDED',
+            '⏱️ Room Extended!',
+            `Your game room has been extended by ${days} days. Keep playing!`,
+            { room_id: roomId, expires_at: newExpiry }
+        );
+    }
+    
+    return { expires_at: newExpiry };
+};
+
+// ─────────────────────────────────────────────────────────────
+// Invite Partner
+// ─────────────────────────────────────────────────────────────
+const invitePartner = async (userId, roomId, partnerPhoneOrEmail) => {
+    const { data: room, error } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('id', roomId)
+        .single();
+    
+    if (error || !room) throwError('Room not found.', 404);
+    if (room.host_id !== userId) throwError('Only host can invite.', 403);
+
+    // Look up partner by email
+    const { data: partnerUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', partnerPhoneOrEmail)
+        .single();
+
+    if (partnerUser) {
+        const { createNotification } = require('./notificationService');
+        await createNotification(
+            partnerUser.id,
+            'PARTNER_JOIN_INVITE',
+            '💌 You\'re Invited!',
+            `You have been invited to join a game room. Use code: ${room.code}`,
+            { room_id: roomId, code: room.code }
+        );
+    }
+    return { success: true, message: 'Invite sent if user exists.' };
+};
+
 module.exports = {
     createRoom,
     joinRoom,
     getActiveRoom,
     leaveRoom,
-    getRoomHistory
+    getRoomHistory,
+    extendRoom,
+    invitePartner
 };

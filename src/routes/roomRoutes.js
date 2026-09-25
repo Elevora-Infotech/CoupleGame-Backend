@@ -1,5 +1,5 @@
 const express = require('express');
-const { createRoom, joinRoom, getActiveRoom, coinFlip, leaveRoom, getRoomHistory } = require('../controllers/roomController');
+const { createRoom, joinRoom, getActiveRoom, coinFlip, leaveRoom, getRoomHistory, extendRoomCtrl, invitePartnerCtrl } = require('../controllers/roomController');
 const { authenticate } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -13,4 +13,6 @@ router.get('/history', getRoomHistory);
 router.post('/coin-flip', coinFlip);
 router.post('/leave', leaveRoom);
 
+router.post('/extend', extendRoomCtrl);
+router.post('/invite', invitePartnerCtrl);
 module.exports = router;

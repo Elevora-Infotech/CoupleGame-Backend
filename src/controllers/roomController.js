@@ -141,4 +141,20 @@ const getRoomHistory = async (req, res, next) => {
     }
 };
 
-module.exports = { createRoom, joinRoom, getActiveRoom, coinFlip, leaveRoom, getRoomHistory };
+const extendRoomCtrl = async (req, res, next) => {
+    try {
+        const { room_id, days } = req.body;
+        const result = await roomService.extendRoom(req.user.id, room_id, days);
+        res.status(200).json({ status: 'success', data: result });
+    } catch (error) { next(error); }
+};
+
+const invitePartnerCtrl = async (req, res, next) => {
+    try {
+        const { room_id, email } = req.body;
+        const result = await roomService.invitePartner(req.user.id, room_id, email);
+        res.status(200).json({ status: 'success', ...result });
+    } catch (error) { next(error); }
+};
+
+module.exports = { createRoom, joinRoom, getActiveRoom, coinFlip, leaveRoom, getRoomHistory, extendRoomCtrl, invitePartnerCtrl };
