@@ -70,6 +70,8 @@ app.use('/api/v1/admin',        adminNotificationRoutes);
 
 // ── Scheduled Notification Runner (every 60 seconds) ──────────────
 const { runScheduledNotifications, triggerAnniversaryNotifications } = require('./services/adminNotificationService');
+const { startScheduledJobs } = require('./services/gameSchedulerService');
+startScheduledJobs();
 let lastAnnivRun = null;
 
 setInterval(() => {
