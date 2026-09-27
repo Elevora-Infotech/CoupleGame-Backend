@@ -40,6 +40,16 @@ const getUserDeck = async (userId) => {
     .order('acquired_at', { ascending: false });
 
   if (error) throwError(error.message, 400);
+
+  const { data: cats } = await supabase.from('card_categories').select('name, icon_url');
+  if (cats) {
+    data.forEach(d => {
+      const match = cats.find(c => c.name === d.category_name);
+      if (match && match.icon_url) {
+        d.category_image = match.icon_url;
+      }
+    });
+  }
   return data;
 };
 
@@ -77,6 +87,16 @@ const getAvailableCards = async (userId, roomId) => {
     }
     return card;
   });
+
+  const { data: cats } = await supabase.from('card_categories').select('name, icon_url');
+  if (cats) {
+    modifiedData.forEach(d => {
+      const match = cats.find(c => c.name === d.category_name);
+      if (match && match.icon_url) {
+        d.category_image = match.icon_url;
+      }
+    });
+  }
 
   return modifiedData;
 };
@@ -294,7 +314,7 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
         id, room_id, sender_id, receiver_id, message, sent_at, status,
         respond_deadline, penalty_deadline, completion_deadline,
         cards ( id, name, power_description, card_type, image_url,
-                card_categories ( name, theme_color ) ),
+                card_categories ( name, theme_color, icon_url ) ),
         penalty_log (
           id, penalty_type,
           user_card_deck!penalty_log_card_transferred_id_fkey (
@@ -597,7 +617,7 @@ const getCardSendHistory = async (userId, roomId) => {
         confirmed_at, penalty_triggered_at, reminder_sent_at, seen_at,
         respond_deadline, penalty_deadline, completion_deadline,
         cards ( id, name, power_description, card_type, image_url,
-                card_categories ( name, theme_color ) ),
+                card_categories ( name, theme_color, icon_url ) ),
         penalty_log (
           id, penalty_type,
           user_card_deck!penalty_log_card_transferred_id_fkey (
