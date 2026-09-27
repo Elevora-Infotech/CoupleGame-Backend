@@ -293,7 +293,7 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
       .select(`
         id, room_id, sender_id, receiver_id, message, sent_at, status,
         respond_deadline, penalty_deadline, completion_deadline,
-        cards ( id, name, power_description, card_type,
+        cards ( id, name, power_description, card_type, image_url,
                 card_categories ( name, theme_color ) ),
         penalty_log (
           id, penalty_type,
@@ -596,7 +596,7 @@ const getCardSendHistory = async (userId, roomId) => {
         sent_at, accepted_at, deflected_at, completed_by_receiver_at,
         confirmed_at, penalty_triggered_at, reminder_sent_at, seen_at,
         respond_deadline, penalty_deadline, completion_deadline,
-        cards ( id, name, power_description, card_type,
+        cards ( id, name, power_description, card_type, image_url,
                 card_categories ( name, theme_color ) ),
         penalty_log (
           id, penalty_type,
