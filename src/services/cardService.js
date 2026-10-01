@@ -10,6 +10,7 @@ const getCatalog = async () => {
       description,
       theme_color,
       icon_url,
+      image_url,
       cards (
         id,
         name,

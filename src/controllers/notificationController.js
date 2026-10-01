@@ -55,7 +55,22 @@ const registerPushToken = async (req, res, next) => {
   } catch (e) { next(e); }
 };
 
-module.exports = {
+
+const unregisterPushToken = async (req, res, next) => {
+  try {
+    const { pushToken } = req.body;
+    if (!pushToken) {
+      return res.status(400).json({ status: 'fail', message: 'pushToken is required' });
+    }
+
+    await notifSvc.removePushToken(req.user.id, pushToken);
+    res.status(200).json({ status: 'success', message: 'Push token unregistered' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { unregisterPushToken,
   getNotifications,
   getUnreadCount,
   markAsRead,

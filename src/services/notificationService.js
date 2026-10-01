@@ -275,7 +275,18 @@ const deleteNotification = async (userId, notifId) => {
   return { success: true };
 };
 
-module.exports = {
+
+const removePushToken = async (userId, pushToken) => {
+    const { error } = await supabase
+        .from('profiles')
+        .update({ push_token: null })
+        .eq('id', userId)
+        .eq('push_token', pushToken);
+    if (error) throw new Error(error.message);
+    return true;
+};
+
+module.exports = { removePushToken,
   createNotification,
   savePushToken,
   sendExpoPushNotification,

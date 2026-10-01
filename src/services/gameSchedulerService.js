@@ -76,7 +76,7 @@ const checkCardReminders = async () => {
 
         for (const card of (expiredCards || [])) {
             // Mark as EXPIRED_FAILED
-            await supabase.from('room_card_sends').update({ status: 'EXPIRED_FAILED' }).eq('id', card.id);
+            await supabase.from('room_card_sends').update({ status: 'PENALTY' }).eq('id', card.id);
 
             await createNotification(
                 card.sender_id,

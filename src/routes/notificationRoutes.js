@@ -38,6 +38,7 @@ router.patch('/:id/read', ctrl.markAsRead);
  * Registers the user's Expo push token for background notifications.
  */
 router.post('/register-push-token', ctrl.registerPushToken);
+router.post('/unregister-push-token', ctrl.unregisterPushToken);
 
 /**
  * DELETE /api/v1/notifications/:id
