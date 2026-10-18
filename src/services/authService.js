@@ -254,7 +254,16 @@ const forgotPassword = async ({ email }) => {
   });
 
   // Send the real email (or log to console if not configured)
-  await sendResetOtpEmail(email, otp);
+  try {
+    await sendResetOtpEmail(email, otp);
+  } catch (mailErr) {
+    console.error('Mail dispatch warning:', mailErr.message);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`⚠️ Non-production fallback: OTP is securely saved in DB for user ${user.id} (${email}): ${otp}`);
+    } else {
+      throw mailErr;
+    }
+  }
 
   return { message: 'If an account exists, you will receive an OTP shortly.' };
 };

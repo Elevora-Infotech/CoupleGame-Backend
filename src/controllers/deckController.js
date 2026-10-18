@@ -71,7 +71,7 @@ const sendCard = async (req, res, next) => {
     emit(room_id, 'card_received', {
       send_id:     sendRecord.id,
       sender_id:   req.user.id,
-      receiver_id,
+      receiver_id: sendRecord.receiver_id,
       room_id,
       card: {
         name:              sendRecord.cards?.name,

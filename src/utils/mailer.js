@@ -2,15 +2,26 @@ const nodemailer = require('nodemailer');
 const { env } = require('../config/env');
 
 // Configure standard SMTP transport (Local NodeMailer, AWS SES, Resend, etc.)
-const transporter = nodemailer.createTransport({
-  host: env.SMTP_HOST,
-  port: env.SMTP_PORT, // 587 or 465
-  secure: env.SMTP_PORT === 465, 
-  auth: {
-    user: env.SMTP_USER,
-    pass: env.SMTP_PASS,
-  },
-});
+const isGmail = env.SMTP_HOST === 'smtp.gmail.com';
+const transporter = nodemailer.createTransport(
+  isGmail
+    ? {
+        service: 'gmail',
+        auth: {
+          user: env.SMTP_USER,
+          pass: env.SMTP_PASS,
+        },
+      }
+    : {
+        host: env.SMTP_HOST,
+        port: env.SMTP_PORT, // 587 or 465
+        secure: env.SMTP_PORT === 465, 
+        auth: {
+          user: env.SMTP_USER,
+          pass: env.SMTP_PASS,
+        },
+      }
+);
 
 /**
  * Sends a 6-digit OTP code to the requested email.
@@ -27,7 +38,7 @@ const sendResetOtpEmail = async (toEmail, otp) => {
   }
 
   const mailOptions = {
-    from: env.SMTP_FROM,
+    from: `"EleVora Support" <${env.SMTP_FROM || env.SMTP_USER}>`,
     to: toEmail,
     subject: 'Your EleVora Password Reset Code',
     text: `Your password reset code is: ${otp}. This code is valid for 1 hour.`,
@@ -43,8 +54,11 @@ const sendResetOtpEmail = async (toEmail, otp) => {
     await transporter.sendMail(mailOptions);
     console.log(`📧 Automatically dispatched OTP to ${toEmail}`);
   } catch (error) {
-    console.error('❌ Error dispatching email:', error);
-    throw new Error('Our mailing server failed to dispatch the OTP. Please try again later.');
+    console.error('❌ Error dispatching email:', error.message || error);
+    console.log(`\n==========================================`);
+    console.log(`🚨 RECOVERY OTP CODE FOR ${toEmail}: ${otp}`);
+    console.log(`==========================================\n`);
+    throw new Error('Our mailing server failed to dispatch the OTP. Please check your SMTP credentials.');
   }
 };
 

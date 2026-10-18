@@ -277,11 +277,15 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
     throwError('Room not found.', 404);
   }
 
-  const isSenderInRoom   = (room.host_id === senderId || room.partner_id === senderId);
-  const isReceiverInRoom = (room.host_id === receiverId || room.partner_id === receiverId);
+  const isSenderInRoom = (room.host_id === senderId || room.partner_id === senderId);
+  if (!isSenderInRoom) {
+    throwError('You are not in this room.', 403);
+  }
 
-  if (!isSenderInRoom || !isReceiverInRoom) {
-    throwError('Receiver is not in this room.', 400);
+  // Auto-resolve receiver: in a 2-person couple room, receiver is always the other participant
+  const resolvedReceiverId = (room.host_id === senderId ? room.partner_id : room.host_id) || receiverId;
+  if (!resolvedReceiverId) {
+    throwError('Your partner has not joined this room yet.', 400);
   }
 
   // Compute deadlines
@@ -302,7 +306,7 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
       .insert([{
         room_id:          roomId,
         sender_id:        senderId,
-        receiver_id:      receiverId,
+        receiver_id:      resolvedReceiverId,
         deck_card_id:     deckCardId,
         card_id:          card.card_id,
         message:          message || null,
@@ -335,7 +339,7 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
   // ── Notify receiver in background (non-blocking) ─────────────────
   const cardName = sendRecord.cards?.name || 'a card';
   createNotification(
-    receiverId,
+    resolvedReceiverId,
     'CARD_RECEIVED',
     '💫 You received a card!',
     `Your partner sent you "${cardName}". Tap to view and respond.`,

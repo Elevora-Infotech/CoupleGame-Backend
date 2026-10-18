@@ -277,13 +277,31 @@ const deleteNotification = async (userId, notifId) => {
 
 
 const removePushToken = async (userId, pushToken) => {
-    const { error } = await supabase
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('preferences')
+      .eq('id', userId)
+      .single();
+
+    let currentPrefs = profile?.preferences || {};
+    if (typeof currentPrefs === 'string') {
+      try { currentPrefs = JSON.parse(currentPrefs); } catch {}
+    }
+
+    if (currentPrefs?.push_token === pushToken) {
+      delete currentPrefs.push_token;
+      const { error } = await supabase
         .from('profiles')
-        .update({ push_token: null })
-        .eq('id', userId)
-        .eq('push_token', pushToken);
-    if (error) throw new Error(error.message);
+        .update({ preferences: currentPrefs })
+        .eq('id', userId);
+      if (error) throw new Error(error.message);
+    }
     return true;
+  } catch (err) {
+    console.error('[NotificationService] removePushToken error:', err.message);
+    return true; // Never crash logout
+  }
 };
 
 module.exports = { removePushToken,
