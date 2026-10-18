@@ -256,12 +256,12 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
 
   // Check daily limit for THIS room
   if (todayCount >= 2) {
-    throwError('Daily limit reached. You can send a maximum of 2 cards per day. Resets at midnight UTC.', 429);
+    throwError('Daily limit reached. You can send a maximum of 2 cards per day. Resets at midnight UTC.', 400);
   }
 
   // Check active limit for THIS room
   if (activeCount >= 2) {
-    throwError('You already have 2 active cards. Finish or close one before sending another.', 429);
+    throwError('You already have 2 active cards. Finish or close one before sending another.', 400);
   }
 
   // Validate deck card
@@ -390,7 +390,7 @@ const acceptCard = async (receiverId, sendId) => {
     .eq('status', 'IN_PROGRESS');
 
   if ((count || 0) >= 2) {
-    throwError('You already have 2 active cards in progress. Complete or close one first.', 429);
+    throwError('You already have 2 active cards in progress. Complete or close one first.', 400);
   }
 
   // Perform the actual update now that it is validated
@@ -536,7 +536,7 @@ const sendReminder = async (receiverId, sendId) => {
     const lastReminder = new Date(existing.reminder_sent_at).getTime();
     const sixHoursMs   = 6 * 60 * 60 * 1000;
     if (Date.now() - lastReminder < sixHoursMs) {
-      throwError('You already sent a reminder recently. Wait at least 6 hours before sending another.', 429);
+      throwError('You already sent a reminder recently. Wait at least 6 hours before sending another.', 400);
     }
   }
 

@@ -8,6 +8,9 @@ const { env } = require('./config/env');
 
 const app = express();
 
+// Trust reverse proxy (Nginx on AWS EC2) so real client IPs are used for rate limiting
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet());
 app.use(apiLimiter); // Apply global rate limit
