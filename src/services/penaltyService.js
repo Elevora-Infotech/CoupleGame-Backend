@@ -398,6 +398,7 @@ const rejectCard = async (receiverId, sendId) => {
   return {
     outcome:          'REJECTED',
     message:          'A moment was declined. A new opportunity has moved elsewhere.',
+    room_id:          roomId,
     card_transferred: transferredCard
       ? {
           id:              transferredCard.id,
