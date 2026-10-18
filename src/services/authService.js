@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const { OAuth2Client } = require('google-auth-library');
 const appleSignin = require('apple-signin-auth');
 const { env } = require('../config/env');
+const { supabase } = require('../db/supabase');
 const userModel = require('../models/userModel');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 const { sendResetOtpEmail } = require('../utils/mailer');
@@ -83,13 +84,28 @@ const login = async ({ email, password }) => {
   const accessToken = generateAccessToken(user.id);
   const refreshToken = generateRefreshToken(user.id);
 
-  // Save refresh token in DB
-  await userModel.updateUser(user.id, { refresh_token: refreshToken });
+  // Parallelize DB refresh_token update and Profile fetch for maximum speed
+  const [profileRes] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, first_name, last_name, avatar_url')
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('users')
+      .update({ refresh_token: refreshToken })
+      .eq('id', user.id)
+  ]);
 
   delete user.password_hash;
   delete user.refresh_token;
 
-  return { user, accessToken, refreshToken };
+  return { 
+    user, 
+    profile: profileRes?.data || null, 
+    accessToken, 
+    refreshToken 
+  };
 };
 
 /**
@@ -128,12 +144,28 @@ const googleLogin = async ({ token }) => {
   const accessToken = generateAccessToken(user.id);
   const refreshToken = generateRefreshToken(user.id);
 
-  await userModel.updateUser(user.id, { refresh_token: refreshToken });
+  // Parallelize DB refresh_token update and Profile fetch
+  const [profileRes] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, first_name, last_name, avatar_url')
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('users')
+      .update({ refresh_token: refreshToken })
+      .eq('id', user.id)
+  ]);
 
   delete user.password_hash;
   delete user.refresh_token;
 
-  return { user, accessToken, refreshToken };
+  return { 
+    user, 
+    profile: profileRes?.data || null, 
+    accessToken, 
+    refreshToken 
+  };
 };
 
 /**
@@ -185,12 +217,27 @@ const appleLogin = async ({ token }) => {
   const accessToken = generateAccessToken(user.id);
   const refreshToken = generateRefreshToken(user.id);
 
-  await userModel.updateUser(user.id, { refresh_token: refreshToken });
+  const [profileRes] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, first_name, last_name, avatar_url')
+      .eq('id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('users')
+      .update({ refresh_token: refreshToken })
+      .eq('id', user.id)
+  ]);
 
   delete user.password_hash;
   delete user.refresh_token;
 
-  return { user, accessToken, refreshToken };
+  return { 
+    user, 
+    profile: profileRes?.data || null, 
+    accessToken, 
+    refreshToken 
+  };
 };
 
 /**

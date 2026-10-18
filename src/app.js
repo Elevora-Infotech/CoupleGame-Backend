@@ -26,7 +26,7 @@ app.use(morgan('dev'));
 app.use('/api/v1/auth', authLimiter);
 
 // Health Check Route
-app.get('/health', (req, res) => {
+app.get(['/health', '/api/v1/health'], (req, res) => {
   res.status(200).json({ status: 'success', message: 'API is running' });
 });
 
