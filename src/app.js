@@ -30,6 +30,9 @@ app.get(['/health', '/api/v1/health'], (req, res) => {
   res.status(200).json({ status: 'success', message: 'API is running' });
 });
 
+const legalRoutes            = require('./routes/legalRoutes');
+app.use('/', legalRoutes);
+
 const authRoutes             = require('./routes/authRoutes');
 const profileRoutes          = require('./routes/profileRoutes');
 const questionnaireRoutes    = require('./routes/questionnaireRoutes');
