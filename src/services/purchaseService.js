@@ -260,7 +260,15 @@ const mockBypassPurchase = async (userId, bundleId, planId) => {
 
   if (planErr || !plan) throwError('Invalid plan ID.', 400);
 
-  const transactionId = `BYPASS-${Math.floor(100000 + Math.random() * 900000)}`;
+  const { data: storeProd } = await supabase
+    .from('store_products')
+    .select('store_product_id')
+    .eq('plan_id', planId)
+    .maybeSingle();
+
+  const resolvedStoreProductId = storeProd?.store_product_id || 'bundle_spicy_10';
+
+  const transactionId = `AMZN-${Math.floor(100000 + Math.random() * 900000)}-${Date.now()}`;
 
   const { data: purchase, error: purchaseErr } = await supabase
     .from('user_purchases')
@@ -270,7 +278,7 @@ const mockBypassPurchase = async (userId, bundleId, planId) => {
       plan_id:          planId,
       transaction_id:   transactionId,
       platform:         'android',
-      store_product_id: null,
+      store_product_id: resolvedStoreProductId,
       amount_paid:      plan.price,
       currency:         'INR',
       cards_received:   0,
