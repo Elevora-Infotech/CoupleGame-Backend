@@ -6,7 +6,22 @@ const getAllPurchases     = async (req, res, next) => { try { const result = awa
 const getPurchaseById    = async (req, res, next) => { try { const p = await svc.getPurchaseById(req.params.purchaseId); res.status(200).json({ status: 'success', data: { purchase: p } }); } catch (e) { next(e); } };
 const getPurchasesByUser = async (req, res, next) => { try { const r = await svc.getPurchasesByUser(req.params.userId, req.query); res.status(200).json({ status: 'success', data: r }); } catch (e) { next(e); } };
 const getPurchaseStats   = async (req, res, next) => { try { const s = await svc.getPurchaseStats(req.query.from_date, req.query.to_date); res.status(200).json({ status: 'success', data: { stats: s } }); } catch (e) { next(e); } };
-const processRefund      = async (req, res, next) => { try { const r = await svc.processRefund(req.params.purchaseId, req.body.reason); res.status(200).json({ status: 'success', message: 'Purchase refunded and cards revoked.', data: { purchase: r } }); } catch (e) { next(e); } };
+const processRefund      = async (req, res, next) => {
+  try {
+    const { reason } = req.body;
+    if (!reason || typeof reason !== 'string' || reason.trim().length < 5) {
+      return res.status(400).json({
+        status: 'error',
+        code: 'MANDATORY_REASON_REQUIRED',
+        message: 'A specific business reason (minimum 5 characters) is required to process a refund.',
+      });
+    }
+    const r = await svc.processRefund(req.params.purchaseId, reason.trim(), req.admin);
+    res.status(200).json({ status: 'success', message: 'Purchase refunded and cards revoked.', data: { purchase: r } });
+  } catch (e) {
+    next(e);
+  }
+};
 
 /**
  * POST /admin/purchases/grant-cards

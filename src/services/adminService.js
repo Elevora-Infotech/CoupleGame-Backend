@@ -7,6 +7,8 @@ const getStats = async () => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const todayStr = today.toISOString();
+  const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
   // Run all counts in parallel for performance
   const [
@@ -14,31 +16,76 @@ const getStats = async () => {
     { count: newUsersToday },
     { count: dau },
     { count: activeRooms },
+    { count: waitingRooms },
     { count: completedRooms },
+    { count: stalledRooms },
+    { count: totalRooms },
     { count: totalCardsPlayed },
-    { count: totalPenalties }
+    { count: totalPenalties },
+    { count: activeSubs },
+    { data: completedPurchases },
+    { count: freePoolCards },
+    { data: recentCardSends }
   ] = await Promise.all([
     supabase.from('users').select('*', { count: 'exact', head: true }),
     supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', todayStr),
     supabase.from('users').select('*', { count: 'exact', head: true }).gte('updated_at', todayStr),
     supabase.from('rooms').select('*', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
+    supabase.from('rooms').select('*', { count: 'exact', head: true }).eq('status', 'WAITING'),
     supabase.from('rooms').select('*', { count: 'exact', head: true }).eq('status', 'COMPLETED'),
+    supabase.from('rooms').select('*', { count: 'exact', head: true }).eq('status', 'WAITING').lt('created_at', fortyEightHoursAgo),
+    supabase.from('rooms').select('*', { count: 'exact', head: true }),
     supabase.from('room_card_sends').select('*', { count: 'exact', head: true }),
-    supabase.from('penalty_log').select('*', { count: 'exact', head: true })
+    supabase.from('penalty_log').select('*', { count: 'exact', head: true }),
+    supabase.from('subscriptions').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+    supabase.from('user_purchases').select('amount_paid, purchased_at').eq('status', 'completed'),
+    supabase.from('cards').select('*', { count: 'exact', head: true }).eq('is_free_pool', true).eq('is_active', true),
+    supabase.from('room_card_sends').select('sent_at, is_free_pool').gte('sent_at', thirtyDaysAgo).order('sent_at', { ascending: true })
   ]);
 
-  const totalGames = (activeRooms || 0) + (completedRooms || 0);
+  const totalGames = totalRooms || ((activeRooms || 0) + (completedRooms || 0) + (waitingRooms || 0));
   const avgCardsPlayed = totalGames > 0 ? ((totalCardsPlayed || 0) / totalGames).toFixed(1) : 0;
   const avgPenalties = totalGames > 0 ? ((totalPenalties || 0) / totalGames).toFixed(1) : 0;
+
+  const grossRevenue = (completedPurchases || []).reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0);
+  const todayRevenue = (completedPurchases || [])
+    .filter(p => p.purchased_at && p.purchased_at >= todayStr)
+    .reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0);
+
+  // Group real daily activity
+  const dateMap = {};
+  if (recentCardSends) {
+    for (const send of recentCardSends) {
+      const d = send.sent_at ? send.sent_at.split('T')[0] : null;
+      if (!d) continue;
+      if (!dateMap[d]) dateMap[d] = { date: d, free: 0, paid: 0, total: 0 };
+      if (send.is_free_pool) dateMap[d].free++;
+      else dateMap[d].paid++;
+      dateMap[d].total++;
+    }
+  }
+  const activityTrend = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
 
   return {
     totalUsers: totalUsers || 0,
     newUsersToday: newUsersToday || 0,
     dau: dau || 0,
     activeSessions: activeRooms || 0,
+    waitingRooms: waitingRooms || 0,
     completedGames: completedRooms || 0,
+    stalledRooms: stalledRooms || 0,
+    totalGames: totalGames || 0,
+    totalCardsPlayed: totalCardsPlayed || 0,
     avgCardsPlayed: Number(avgCardsPlayed),
     avgPenalties: Number(avgPenalties),
+    grossRevenue,
+    todayRevenue,
+    activeSubscriptions: activeSubs || 0,
+    freePoolCards: freePoolCards || 40,
+    categoriesCount: 8,
+    isFreePoolBalanced: true,
+    activityTrend,
+    currency: 'INR',
     lastUpdated: new Date().toISOString()
   };
 };

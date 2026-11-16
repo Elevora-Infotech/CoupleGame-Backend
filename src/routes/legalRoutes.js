@@ -51,11 +51,11 @@ const privacyHtml = `<!DOCTYPE html>
     <p>Your data is transmitted over TLS/SSL encryption. We maintain strict access controls and Row Level Security on all user tables.</p>
 
     <h2>5. User Rights & Account Deletion</h2>
-    <p>You have the right to request deletion of your account and all associated personal data at any time. To request account deletion, visit our <a href="/delete-account">Account Deletion Page</a> or email us at <a href="mailto:sunilbhor1977@gmail.com">sunilbhor1977@gmail.com</a>.</p>
+    <p>You have the right to request deletion of your account and all associated personal data at any time. To request account deletion, visit our <a href="/delete-account">Account Deletion Page</a> or email us at <a href="mailto:admin.soulshuffle@gmail.com">admin.soulshuffle@gmail.com</a>.</p>
 
     <h2>6. Contact Us</h2>
     <p>If you have any questions or concerns about this policy, please reach out to us at:<br>
-    <strong>Email:</strong> <a href="mailto:sunilbhor1977@gmail.com">sunilbhor1977@gmail.com</a></p>
+    <strong>Email:</strong> <a href="mailto:admin.soulshuffle@gmail.com">admin.soulshuffle@gmail.com</a></p>
   </div>
   <div class="footer">&copy; 2026 SoulShuffle. All Rights Reserved.</div>
 </body>
@@ -90,7 +90,7 @@ const deleteAccountHtml = `<!DOCTYPE html>
     <div class="action-box">
       <h3 style="margin-top:0; color: #9F1239;">Submit a Deletion Request</h3>
       <p style="margin-bottom: 15px;">Send an account deletion request directly to our support team. Please include the email address registered with your SoulShuffle account.</p>
-      <a class="btn" href="mailto:sunilbhor1977@gmail.com?subject=SoulShuffle%20Account%20Deletion%20Request&body=Please%20delete%20my%20SoulShuffle%20account%20and%20all%20associated%20data.%0A%0ARegistered%20Email:%20">Request Account Deletion via Email</a>
+      <a class="btn" href="mailto:admin.soulshuffle@gmail.com?subject=SoulShuffle%20Account%20Deletion%20Request&body=Please%20delete%20my%20SoulShuffle%20account%20and%20all%20associated%20data.%0A%0ARegistered%20Email:%20">Request Account Deletion via Email</a>
     </div>
 
     <h2>What Happens When Your Account is Deleted?</h2>
@@ -104,7 +104,7 @@ const deleteAccountHtml = `<!DOCTYPE html>
     <p>Account deletion requests submitted via email or within the app are processed within <strong>7 business days</strong>. Once deleted, this action is permanent and cannot be reversed.</p>
 
     <h2>Need Help?</h2>
-    <p>If you have any questions about data retention or account deletion, please contact our support team at <a href="mailto:sunilbhor1977@gmail.com">sunilbhor1977@gmail.com</a>.</p>
+    <p>If you have any questions about data retention or account deletion, please contact our support team at <a href="mailto:admin.soulshuffle@gmail.com">admin.soulshuffle@gmail.com</a>.</p>
   </div>
   <div class="footer">&copy; 2026 SoulShuffle. All Rights Reserved.</div>
 </body>

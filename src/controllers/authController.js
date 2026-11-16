@@ -86,10 +86,15 @@ const googleLogin = async (req, res, next) => {
       return sendError(res, 400, 'Validation Error', error.errors);
     }
     // E.g. Google verification failed 
-    if (error.message.includes('Token used too late') || error.message.includes('Wrong number of segments')) {
-       return sendError(res, 401, 'Invalid or expired Google Token');
+    if (
+      error.message?.includes('Token used too late') || 
+      error.message?.includes('Wrong number of segments') ||
+      error.message?.includes('audience') ||
+      error.message?.includes('recipient')
+    ) {
+       return sendError(res, 401, 'Invalid or expired Google Token: ' + error.message);
     }
-    next(error);
+    return sendError(res, error.status || 500, error.message || 'Google authentication failed');
   }
 };
 

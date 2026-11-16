@@ -51,6 +51,12 @@ const adminGameRoutes        = require('./routes/adminGameRoutes');
 const notificationRoutes     = require('./routes/notificationRoutes');
 const adminNotificationRoutes = require('./routes/adminNotificationRoutes');
 const telemetryRoutes        = require('./routes/telemetryRoutes');
+const adminAuditRoutes       = require('./routes/adminAuditRoutes');
+const adminOperationsRoutes  = require('./routes/adminOperationsRoutes');
+const adminRevenueRoutes     = require('./routes/adminRevenueRoutes');
+const adminContentRoutes     = require('./routes/adminContentRoutes');
+const adminIntelligenceRoutes = require('./routes/adminIntelligenceRoutes');
+const adminSettingsRoutes     = require('./routes/adminSettingsRoutes');
 
 // Setup Routes
 app.use('/api/v1/auth',            authRoutes);
@@ -73,6 +79,12 @@ app.use('/api/v1/admin',        bundleAdminRoutes);
 app.use('/api/v1/admin',        adminPurchaseRoutes);
 app.use('/api/v1/admin',        adminMasterDeckRoutes);
 app.use('/api/v1/admin',        adminNotificationRoutes);
+app.use('/api/v1/admin/audit-logs', adminAuditRoutes);
+app.use('/api/v1/admin/operations', adminOperationsRoutes);
+app.use('/api/v1/admin/revenue',      adminRevenueRoutes);
+app.use('/api/v1/admin/content',      adminContentRoutes);
+app.use('/api/v1/admin/intelligence', adminIntelligenceRoutes);
+app.use('/api/v1/admin/settings',     adminSettingsRoutes);
 
 // ── Scheduled Notification Runner (every 60 seconds) ──────────────
 const { runScheduledNotifications, triggerAnniversaryNotifications } = require('./services/adminNotificationService');

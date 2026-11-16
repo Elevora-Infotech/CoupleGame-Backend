@@ -1,11 +1,13 @@
 const jwt = require('jsonwebtoken');
 const { env } = require('../config/env');
 const { supabase } = require('../db/supabase');
+const { getAllowedCategories } = require('../constants/adminPermissions');
 
 /**
  * Admin Middleware
  * 1. Verifies that the JWT is valid.
  * 2. Verifies that the user exists in the 'admins' table.
+ * 3. Populates role and permitted action categories on req.admin.
  */
 const adminProtect = async (req, res, next) => {
   let token;
@@ -40,8 +42,12 @@ const adminProtect = async (req, res, next) => {
         throw error;
       }
 
-      // Add admin and id to request object
-      req.admin = admin;
+      // Attach admin, role, and permission categories
+      req.admin = {
+        ...admin,
+        role: admin.role || 'support',
+        permissions: getAllowedCategories(admin.role),
+      };
       req.adminId = admin.id;
 
       next();

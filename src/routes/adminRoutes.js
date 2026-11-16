@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/adminController');
 const { adminProtect } = require('../middlewares/adminMiddleware');
+const { requireCategory, ACTION_CATEGORIES } = require('../middlewares/adminRbac');
 
 /**
  * @route GET /api/v1/admin/dashboard/stats
@@ -19,9 +20,9 @@ router.get('/dashboard/stats', adminProtect, adminController.getDashboardStats);
  * @access Private (Admin Only)
  */
 router.get('/dashboard/questions', adminProtect, adminController.getAllQuestions);
-router.post('/dashboard/questions', adminProtect, adminController.createNewQuestion);
-router.put('/dashboard/questions/:id', adminProtect, adminController.updateQuestion);
-router.delete('/dashboard/questions/:id', adminProtect, adminController.deleteQuestion);
+router.post('/dashboard/questions', adminProtect, requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), adminController.createNewQuestion);
+router.put('/dashboard/questions/:id', adminProtect, requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), adminController.updateQuestion);
+router.delete('/dashboard/questions/:id', adminProtect, requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), adminController.deleteQuestion);
 
 /**
  * @route GET /api/v1/admin/dashboard/categories
@@ -29,9 +30,9 @@ router.delete('/dashboard/questions/:id', adminProtect, adminController.deleteQu
  * @access Private (Admin Only)
  */
 router.get('/dashboard/categories', adminProtect, adminController.getAllCategories);
-router.post('/dashboard/categories', adminProtect, adminController.createCardCategory);
-router.put('/dashboard/categories/:id', adminProtect, adminController.updateCardCategory);
-router.delete('/dashboard/categories/:id', adminProtect, adminController.deleteCardCategory);
+router.post('/dashboard/categories', adminProtect, requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), adminController.createCardCategory);
+router.put('/dashboard/categories/:id', adminProtect, requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), adminController.updateCardCategory);
+router.delete('/dashboard/categories/:id', adminProtect, requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), adminController.deleteCardCategory);
 
 /**
  * @route GET /api/v1/admin/dashboard/cards
@@ -40,11 +41,11 @@ router.delete('/dashboard/categories/:id', adminProtect, adminController.deleteC
  */
 router.get('/dashboard/cards/stats', adminProtect, adminController.getCardStats);
 router.get('/dashboard/cards', adminProtect, adminController.getAllCards);
-router.post('/dashboard/cards', adminProtect, adminController.createCard);
+router.post('/dashboard/cards', adminProtect, requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), adminController.createCard);
 router.get('/dashboard/cards/:id', adminProtect, adminController.getCardById);
-router.put('/dashboard/cards/:id', adminProtect, adminController.updateCard);
-router.patch('/dashboard/cards/:id/toggle', adminProtect, adminController.toggleCardActive);
-router.delete('/dashboard/cards/:id', adminProtect, adminController.deleteCard);
+router.put('/dashboard/cards/:id', adminProtect, requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), adminController.updateCard);
+router.patch('/dashboard/cards/:id/toggle', adminProtect, requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), adminController.toggleCardActive);
+router.delete('/dashboard/cards/:id', adminProtect, requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), adminController.deleteCard);
 
 router.get('/dashboard/cards-analytics', adminProtect, adminController.getCardPerformanceAnalytics);
 router.get('/dashboard/relationship-dynamics', adminProtect, adminController.getRelationshipDynamics);

@@ -12,6 +12,7 @@
  */
 
 const { supabase } = require('../db/supabase');
+const { logAdminAction } = require('./adminAuditService');
 
 const throwError = (message, status = 500) => {
   const err = new Error(message);
@@ -23,21 +24,22 @@ const throwError = (message, status = 500) => {
 // A. Get All Games (paginated + filterable)
 // GET /admin/games?page=1&limit=20&status=ACTIVE&search=ELV-xxx
 // ─────────────────────────────────────────────────────────────
-const getAllGames = async ({ page = 1, limit = 20, status = '', search = '' } = {}) => {
+const getAllGames = async ({ page = 1, limit = 20, status = '', search = '', type = '', end_reason = '' } = {}) => {
   const offset = (page - 1) * limit;
 
   let query = supabase
     .from('rooms')
     .select(`
-      id, code, status, expiry_type, created_at, expires_at,
-      host:users!rooms_host_id_fkey (id, name, email),
-      partner:users!rooms_partner_id_fkey (id, name, email)
+      id, code, status, mode, current_game_number, season_number, source, closed_reason, created_at, expires_at, paired_at,
+      host:users!rooms_host_id_fkey (id, name, email, phone, phone_masked, platform),
+      partner:users!rooms_partner_id_fkey (id, name, email, phone, phone_masked, platform)
     `, { count: 'exact' });
 
   if (status) query = query.eq('status', status.toUpperCase());
+  if (type) query = query.eq('mode', type.toLowerCase());
+  if (end_reason) query = query.ilike('closed_reason', `%${end_reason}%`);
 
   if (search) {
-    // search by room code (partial, case-insensitive)
     query = query.ilike('code', `%${search}%`);
   }
 
@@ -48,7 +50,7 @@ const getAllGames = async ({ page = 1, limit = 20, status = '', search = '' } = 
   const { data, count, error } = await query;
   if (error) throwError(error.message, 400);
 
-  // For each room fetch quick card counts
+  // For each room fetch card stats
   const roomIds = (data || []).map(r => r.id);
   let cardCountMap = {};
   if (roomIds.length > 0) {
@@ -58,25 +60,33 @@ const getAllGames = async ({ page = 1, limit = 20, status = '', search = '' } = 
       .in('room_id', roomIds);
 
     (sends || []).forEach(s => {
-      if (!cardCountMap[s.room_id]) cardCountMap[s.room_id] = { total: 0, pending: 0, completed: 0, deflected: 0 };
+      if (!cardCountMap[s.room_id]) cardCountMap[s.room_id] = { total: 0, pending: 0, completed: 0, deflected: 0, penalties: 0 };
       cardCountMap[s.room_id].total++;
       if (['SENT', 'WAITING', 'IN_PROGRESS', 'COMPLETED_BY_RECEIVER'].includes(s.status)) cardCountMap[s.room_id].pending++;
       if (s.status === 'COMPLETED') cardCountMap[s.room_id].completed++;
       if (s.status === 'DEFLECTED') cardCountMap[s.room_id].deflected++;
+      if (s.status === 'PENALTY') cardCountMap[s.room_id].penalties++;
     });
   }
 
-  const rooms = (data || []).map(r => ({
-    ...r,
-    cards: cardCountMap[r.id] || { total: 0, pending: 0, completed: 0, deflected: 0 },
-  }));
+  const now = new Date();
+  const rooms = (data || []).map(r => {
+    const start = new Date(r.created_at);
+    const day = Math.max(1, Math.ceil((now - start) / (1000 * 60 * 60 * 24)));
+    return {
+      ...r,
+      mode: r.mode || 'free',
+      current_day: day,
+      cards: cardCountMap[r.id] || { total: 0, pending: 0, completed: 0, deflected: 0, penalties: 0 },
+    };
+  });
 
   return {
     games: rooms,
     pagination: {
+      page: Number(page),
+      limit: Number(limit),
       total: count || 0,
-      page,
-      limit,
       pages: Math.ceil((count || 0) / limit),
     },
   };
@@ -176,7 +186,7 @@ const getGameById = async (roomId) => {
 // C. Force-End Game
 // POST /admin/games/:roomId/force-end
 // ─────────────────────────────────────────────────────────────
-const forceEndGame = async (roomId) => {
+const forceEndGame = async (roomId, { admin, reason } = {}) => {
   const { data: room } = await supabase
     .from('rooms')
     .select('id, code, status')
@@ -188,10 +198,14 @@ const forceEndGame = async (roomId) => {
     throwError(`Room ${room.code} is already ${room.status}. Nothing to end.`, 409);
   }
 
-  // Mark room COMPLETED
+  // Mark room COMPLETED with end_reason 'force_ended'
   const { error: roomErr } = await supabase
     .from('rooms')
-    .update({ status: 'COMPLETED', updated_at: new Date().toISOString() })
+    .update({ 
+      status: 'COMPLETED', 
+      closed_reason: 'force_ended',
+      updated_at: new Date().toISOString() 
+    })
     .eq('id', roomId);
   if (roomErr) throwError('Failed to close room: ' + roomErr.message);
 
@@ -209,6 +223,25 @@ const forceEndGame = async (roomId) => {
     .eq('room_id', roomId)
     .eq('is_used', false)
     .eq('expired', false);
+
+  // Record into immutable admin_audit_logs if admin session provided
+  if (admin && reason) {
+    try {
+      await logAdminAction({
+        adminId: admin.id,
+        adminName: admin.name,
+        role: admin.role,
+        actionType: 'FORCE_END_GAME',
+        targetEntity: 'room',
+        targetId: room.code || roomId,
+        beforeState: { status: room.status },
+        afterState: { status: 'COMPLETED', closed_reason: 'force_ended' },
+        reason: reason,
+      });
+    } catch (auditErr) {
+      console.warn('[AdminGameService] Audit log write warning:', auditErr.message);
+    }
+  }
 
   return { message: `Room ${room.code} has been force-ended successfully.`, room_code: room.code };
 };

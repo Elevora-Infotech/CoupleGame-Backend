@@ -8,6 +8,7 @@
 
 const { supabase }           = require('../db/supabase');
 const { selectCardsForUser } = require('./purchaseService');
+const { logAdminAction }     = require('./adminAuditService');
 const uuidv4                 = () => require('crypto').randomUUID();
 
 const throwError = (message, status = 500) => {
@@ -163,11 +164,11 @@ const getPurchaseStats = async (fromDate, toDate) => {
 // Marks purchase as refunded AND revokes all cards instantly.
 // Irreversible operation — cards are hidden from user's deck.
 // ─────────────────────────────────────────────────────────────
-const processRefund = async (purchaseId, adminNote = '') => {
+const processRefund = async (purchaseId, adminNote = '', admin = null) => {
   // Confirm purchase exists and is refundable
   const { data: purchase, error } = await supabase
     .from('user_purchases')
-    .select('id, status')
+    .select('id, status, amount_paid, user_id')
     .eq('id', purchaseId)
     .single();
 
@@ -201,6 +202,26 @@ const processRefund = async (purchaseId, adminNote = '') => {
     .single();
 
   if (updateErr) throwError('Failed to update purchase status.', 500);
+
+  // Record into immutable admin_audit_logs
+  if (admin && adminNote) {
+    try {
+      await logAdminAction({
+        adminId: admin.id,
+        adminName: admin.name,
+        role: admin.role,
+        actionType: 'REFUND_PURCHASE',
+        targetEntity: 'purchase',
+        targetId: purchase.id,
+        beforeState: { status: purchase.status, amount: purchase.amount_paid },
+        afterState: { status: 'refunded' },
+        reason: adminNote,
+      });
+    } catch (auditErr) {
+      console.warn('[AdminPurchaseService] Audit log write warning:', auditErr.message);
+    }
+  }
+
   return updated;
 };
 

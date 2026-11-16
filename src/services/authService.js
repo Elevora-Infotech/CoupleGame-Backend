@@ -112,13 +112,22 @@ const login = async ({ email, password }) => {
  * Handle Google Login via ID Token
  */
 const googleLogin = async ({ token }) => {
-  // Verify Google ID token
+  // Verify Google ID token against web, android, and iOS client IDs
+  const allowedAudiences = [
+    env.GOOGLE_CLIENT_ID,
+    '649494442566-4p1lnmhgpuht1eko9kvl26h887dpqdlv.apps.googleusercontent.com',
+    '649494442566-020e8g4qi89fbrgip7vvvvns26khppuf.apps.googleusercontent.com',
+    '649494442566-0vk9j59ml0n84pcbci464v0l3or2ktmm.apps.googleusercontent.com',
+    '649494442566-1fndtrio7mcaivdokc8fcqommjesntrg.apps.googleusercontent.com',
+    '649494442566-cf88esafumaovatfh3u43aebkr2g1itg.apps.googleusercontent.com'
+  ].filter(Boolean);
+
   const ticket = await googleClient.verifyIdToken({
     idToken: token,
-    audience: env.GOOGLE_CLIENT_ID,
+    audience: allowedAudiences,
   });
   const payload = ticket.getPayload();
-  const { email, name } = payload;
+  const { email, name, picture } = payload;
 
   // Check if user exists
   let user = await userModel.findUserByEmail(email);
@@ -133,11 +142,25 @@ const googleLogin = async ({ token }) => {
   if (!user) {
     // Create new user using Google details
     user = await userModel.createUser({
-      name,
+      name: name || (email ? email.split('@')[0] : 'User'),
       email,
       password_hash: null, // No password for OAuth users
       auth_provider: 'google'
     });
+
+    // Auto-create profile record for the new user so all app features work seamlessly
+    try {
+      await supabase
+        .from('profiles')
+        .insert([{
+          id: user.id,
+          first_name: (name || (email ? email.split('@')[0] : 'User')).split(' ')[0],
+          last_name: (name || '').split(' ').slice(1).join(' ') || '',
+          avatar_url: picture || null,
+        }]);
+    } catch (profErr) {
+      console.warn('[GoogleLogin] Profile auto-creation notice:', profErr.message);
+    }
   }
 
   // Generate tokens
