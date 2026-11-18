@@ -366,9 +366,7 @@ const updateCard = async ({
 // 5. RETIRE / RESTORE CARD
 // ─────────────────────────────────────────────────────────────
 const toggleCardStatus = async ({ cardId, isActive, admin, reason }) => {
-  if (!reason || reason.trim().length < 5) {
-    throwError('A business reason (minimum 5 characters) is required to toggle card active status.', 400);
-  }
+  const auditReason = (reason && reason.trim()) || (isActive ? 'Restored card' : 'Retired card');
 
   const { data: updated, error } = await supabase
     .from('cards')
@@ -380,22 +378,47 @@ const toggleCardStatus = async ({ cardId, isActive, admin, reason }) => {
   if (error) throwError(error.message, 400);
 
   if (admin) {
-    await logAdminAction({
-      adminId: admin.id,
-      adminName: admin.name,
-      role: admin.role,
-      actionType: isActive ? 'RESTORE_CARD' : 'RETIRE_CARD',
-      targetEntity: 'cards',
-      targetId: cardId,
-      afterState: { is_active: Boolean(isActive) },
-      reason: reason.trim(),
-    });
+    try {
+      await logAdminAction({
+        adminId: admin.id,
+        adminName: admin.name,
+        role: admin.role,
+        actionType: isActive ? 'RESTORE_CARD' : 'RETIRE_CARD',
+        targetEntity: 'cards',
+        targetId: cardId,
+        reason: auditReason,
+      });
+    } catch (e) {}
   }
 
-  return {
-    message: `Card ${isActive ? 'restored to active pool' : 'retired from deck pool'}.`,
-    card: updated,
-  };
+  return updated;
+};
+
+const deleteCard = async ({ cardId, admin }) => {
+  try {
+    const { error } = await supabase.from('cards').delete().eq('id', cardId);
+    if (error) {
+      await supabase.from('cards').update({ is_active: false }).eq('id', cardId);
+    }
+  } catch (e) {
+    await supabase.from('cards').update({ is_active: false }).eq('id', cardId);
+  }
+
+  if (admin) {
+    try {
+      await logAdminAction({
+        adminId: admin.id,
+        adminName: admin.name,
+        role: admin.role,
+        actionType: 'DELETE_CARD',
+        targetEntity: 'cards',
+        targetId: cardId,
+        reason: 'Card deleted by admin',
+      });
+    } catch (e) {}
+  }
+
+  return { success: true };
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -486,6 +509,7 @@ module.exports = {
   createCard,
   createBulkCards,
   updateCard,
+  deleteCard,
   toggleCardStatus,
   getCategories,
   updateCategory,

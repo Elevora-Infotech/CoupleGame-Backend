@@ -19,6 +19,7 @@ router.get('/cards/:id', requireCategory(ACTION_CATEGORIES.READ_OPERATIONS), ctr
 router.post('/cards/bulk', requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), ctrl.createBulkCards);
 router.post('/cards', requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), ctrl.createCard);
 router.put('/cards/:id', requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), ctrl.updateCard);
+router.delete('/cards/:id', requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), ctrl.deleteCard);
 router.patch('/cards/:id/toggle', requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), ctrl.toggleCardStatus);
 
 // ── 2. Categories ──────────────────────────────────────────────

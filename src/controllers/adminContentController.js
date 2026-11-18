@@ -145,12 +145,26 @@ const createBulkCards = async (req, res, next) => {
   }
 };
 
+const deleteCard = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await adminContentService.deleteCard({
+      cardId: id,
+      admin: req.admin,
+    });
+    res.status(200).json({ status: 'success', data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getCardsCatalog,
   getCardById,
   createCard,
   createBulkCards,
   updateCard,
+  deleteCard,
   toggleCardStatus,
   getCategories,
   updateCategory,
