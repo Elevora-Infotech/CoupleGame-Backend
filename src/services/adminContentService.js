@@ -157,15 +157,13 @@ const createCard = async ({
   if (!name || !prompt || !categoryId) {
     throwError('Name, prompt, and category are required.', 400);
   }
-  if (!reason || reason.trim().length < 5) {
-    throwError('A business reason (minimum 5 characters) is required to create a card.', 400);
-  }
+  const auditReason = (reason && reason.trim()) || 'Card created via Admin Panel';
 
   const attributes = {
     version: 1,
     spice_level: Number(spiceLevel) || 1,
     timer_hours: Number(timerHours) || 24,
-    penalty_prompt: penaltyPrompt.trim(),
+    penalty_prompt: penaltyPrompt ? penaltyPrompt.trim() : '',
   };
 
   const { data, error } = await supabase
@@ -186,21 +184,92 @@ const createCard = async ({
   if (error) throwError(error.message, 400);
 
   if (admin) {
-    await logAdminAction({
-      adminId: admin.id,
-      adminName: admin.name,
-      role: admin.role,
-      actionType: 'CREATE_DARE_CARD',
-      targetEntity: 'cards',
-      targetId: data.id,
-      afterState: { name: data.name, prompt: data.power_description, attributes },
-      reason: reason.trim(),
-    });
+    try {
+      await logAdminAction({
+        adminId: admin.id,
+        adminName: admin.name,
+        role: admin.role,
+        actionType: 'CREATE_DARE_CARD',
+        targetEntity: 'cards',
+        targetId: data.id,
+        reason: auditReason,
+      });
+    } catch (e) {}
+  }
+
+  return data;
+};
+
+/**
+ * Bulk create cards from CSV / Array
+ */
+const createBulkCards = async ({ cards = [], admin, defaultCategoryId }) => {
+  if (!Array.isArray(cards) || cards.length === 0) {
+    throwError('No cards provided for bulk import.', 400);
+  }
+
+  // Fetch all categories to map category name to ID
+  const { data: allCategories } = await supabase.from('card_categories').select('id, name');
+  const catMap = {};
+  (allCategories || []).forEach(c => {
+    catMap[c.name.trim().toLowerCase()] = c.id;
+    catMap[c.id] = c.id;
+  });
+
+  const rowsToInsert = [];
+  for (const card of cards) {
+    const rawName = card.name || card.title || card.card_name || card.CardName || '';
+    const rawPrompt = card.prompt || card.power_description || card.description || card.dare || card.action || card.Prompt || '';
+    let catId = card.category_id || card.categoryId || defaultCategoryId;
+    
+    // Check if category provided as string name (e.g. "Romance")
+    const catName = (card.category || card.category_name || card.Category || '').trim().toLowerCase();
+    if (catName && catMap[catName]) {
+      catId = catMap[catName];
+    }
+
+    if (rawName.trim() && rawPrompt.trim() && (catId || defaultCategoryId)) {
+      rowsToInsert.push({
+        name: rawName.trim(),
+        power_description: rawPrompt.trim(),
+        category_id: catId || defaultCategoryId,
+        card_type: card.card_type || 'ACTION',
+        attributes: { version: 1 },
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+  }
+
+  if (rowsToInsert.length === 0) {
+    throwError('No valid card rows found. Ensure each row has name, description, and valid category.', 400);
+  }
+
+  const { data: inserted, error } = await supabase
+    .from('cards')
+    .insert(rowsToInsert)
+    .select('id, name, power_description, category_id, is_active, created_at');
+
+  if (error) throwError('Bulk insert error: ' + error.message, 400);
+
+  if (admin) {
+    try {
+      await logAdminAction({
+        adminId: admin.id,
+        adminName: admin.name,
+        role: admin.role,
+        actionType: 'BULK_IMPORT_CARDS',
+        targetEntity: 'cards',
+        targetId: 'bulk_import',
+        reason: `Bulk imported ${inserted.length} cards via CSV`,
+      });
+    } catch (e) {}
   }
 
   return {
-    message: 'Card created successfully.',
-    card: data,
+    inserted_count: inserted.length,
+    cards: inserted,
   };
 };
 
@@ -415,6 +484,7 @@ module.exports = {
   getCardsCatalog,
   getCardById,
   createCard,
+  createBulkCards,
   updateCard,
   toggleCardStatus,
   getCategories,

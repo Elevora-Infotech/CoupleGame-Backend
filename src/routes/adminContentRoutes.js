@@ -16,6 +16,7 @@ router.use(adminProtect);
 // ── 1. Cards Catalog & Management ──────────────────────────────
 router.get('/cards', requireCategory(ACTION_CATEGORIES.READ_OPERATIONS), ctrl.getCardsCatalog);
 router.get('/cards/:id', requireCategory(ACTION_CATEGORIES.READ_OPERATIONS), ctrl.getCardById);
+router.post('/cards/bulk', requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), ctrl.createBulkCards);
 router.post('/cards', requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), ctrl.createCard);
 router.put('/cards/:id', requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), ctrl.updateCard);
 router.patch('/cards/:id/toggle', requireCategory(ACTION_CATEGORIES.CONTENT_MANAGEMENT), ctrl.toggleCardStatus);

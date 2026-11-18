@@ -131,10 +131,25 @@ const getContentVersionDiffs = async (req, res, next) => {
   }
 };
 
+const createBulkCards = async (req, res, next) => {
+  try {
+    const { cards, defaultCategoryId } = req.body;
+    const result = await adminContentService.createBulkCards({
+      cards,
+      defaultCategoryId,
+      admin: req.admin,
+    });
+    res.status(201).json({ status: 'success', data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getCardsCatalog,
   getCardById,
   createCard,
+  createBulkCards,
   updateCard,
   toggleCardStatus,
   getCategories,
