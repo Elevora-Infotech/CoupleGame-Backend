@@ -67,4 +67,8 @@ router.get('/team', adminProtect, adminController.getTeamMembers);
 router.post('/team', adminProtect, adminController.createTeamMember);
 router.delete('/team/:id', adminProtect, adminController.deleteTeamMember);
 
+// Section 6: Security & 2FA Configuration
+router.get('/security/2fa-status', adminProtect, adminController.get2FAStatus);
+router.post('/security/toggle-2fa', adminProtect, adminController.toggle2FA);
+
 module.exports = router;

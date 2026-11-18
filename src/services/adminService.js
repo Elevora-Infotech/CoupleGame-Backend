@@ -659,6 +659,36 @@ const deleteTeamMember = async (adminId) => {
   return { success: true };
 };
 
+const get2FAStatus = async () => {
+  const { data: settingRow } = await supabase
+    .from('game_settings')
+    .select('setting_value')
+    .eq('setting_key', 'admin_2fa_enabled')
+    .maybeSingle();
+
+  const isEnabled = settingRow ? (settingRow.setting_value === true || settingRow.setting_value === 'true' || settingRow.setting_value === 1 || settingRow.setting_value === '1') : false;
+
+  return {
+    admin_2fa_enabled: isEnabled,
+  };
+};
+
+const toggle2FA = async ({ enabled }) => {
+  const boolVal = Boolean(enabled);
+  await supabase
+    .from('game_settings')
+    .upsert({
+      setting_key: 'admin_2fa_enabled',
+      setting_value: boolVal,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'setting_key' });
+
+  return {
+    admin_2fa_enabled: boolVal,
+    message: boolVal ? '2FA has been turned ON for all admin logins.' : '2FA has been turned OFF. Admins can log in directly with Email and Password.',
+  };
+};
+
 module.exports = {
   getStats,
   createQuestion,
@@ -695,4 +725,6 @@ module.exports = {
   getTeamMembers,
   createTeamMember,
   deleteTeamMember,
+  get2FAStatus,
+  toggle2FA,
 };

@@ -271,6 +271,25 @@ const deleteTeamMember = async (req, res, next) => {
   }
 };
 
+const get2FAStatus = async (req, res, next) => {
+  try {
+    const data = await adminService.get2FAStatus();
+    res.status(200).json({ status: 'success', data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const toggle2FA = async (req, res, next) => {
+  try {
+    const { enabled } = req.body;
+    const data = await adminService.toggle2FA({ enabled });
+    res.status(200).json({ status: 'success', data });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getDashboardStats,
   createNewQuestion,
@@ -306,4 +325,6 @@ module.exports = {
   getTeamMembers,
   createTeamMember,
   deleteTeamMember,
+  get2FAStatus,
+  toggle2FA,
 };

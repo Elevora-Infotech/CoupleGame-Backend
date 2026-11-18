@@ -48,7 +48,61 @@ const adminLogin = async ({ email, password }) => {
     throw err;
   }
 
-  // Generate 6-digit numeric OTP
+  // Check if 2FA is globally enabled in game_settings (Default: OFF)
+  let is2FAEnabled = false;
+  try {
+    const { data: settingRow } = await supabase
+      .from('game_settings')
+      .select('setting_value')
+      .eq('setting_key', 'admin_2fa_enabled')
+      .maybeSingle();
+
+    if (settingRow && settingRow.setting_value !== null) {
+      is2FAEnabled = settingRow.setting_value === true || settingRow.setting_value === 'true' || settingRow.setting_value === 1 || settingRow.setting_value === '1';
+    }
+  } catch (settingErr) {
+    console.warn('[AdminAuthService] Could not read admin_2fa_enabled setting, defaulting to false:', settingErr.message);
+  }
+
+  // If 2FA is OFF (default), bypass OTP and log in directly
+  if (!is2FAEnabled) {
+    const role = (admin.role || 'support').toLowerCase();
+    const permissions = getAllowedCategories(role);
+
+    try {
+      await supabase
+        .from('admins')
+        .update({
+          last_login: new Date().toISOString(),
+        })
+        .eq('id', admin.id);
+    } catch (e) {}
+
+    const adminAccessToken = jwt.sign(
+      {
+        id: admin.id,
+        role: role,
+        permissions: permissions,
+        type: 'admin',
+      },
+      env.JWT_ACCESS_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    return {
+      requires2FA: false,
+      admin: {
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        role: role,
+        permissions: permissions,
+      },
+      token: adminAccessToken,
+    };
+  }
+
+  // Generate 6-digit numeric OTP (Only if 2FA is enabled)
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
 
