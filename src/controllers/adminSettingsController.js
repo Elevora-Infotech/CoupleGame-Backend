@@ -155,6 +155,31 @@ const getSoftLaunchMetrics = async (req, res, next) => {
   }
 };
 
+// 6. VIP Membership Plans & Features
+const getMembershipPlans = async (req, res, next) => {
+  try {
+    const result = await adminSettingsService.getMembershipPlansAndFeatures();
+    res.status(200).json({ status: 'success', data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const updateMembershipPlans = async (req, res, next) => {
+  try {
+    const { plans, features, reason } = req.body;
+    const result = await adminSettingsService.updateMembershipPlansAndFeatures({
+      plans,
+      features,
+      reason,
+      admin: req.admin,
+    });
+    res.status(200).json({ status: 'success', data: result });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getRuntimeSettings,
   updateRuntimeSettings,
@@ -168,4 +193,6 @@ module.exports = {
   getFreeGamePitch,
   updateFreeGamePitch,
   getSoftLaunchMetrics,
+  getMembershipPlans,
+  updateMembershipPlans,
 };

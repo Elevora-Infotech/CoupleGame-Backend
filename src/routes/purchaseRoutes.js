@@ -25,4 +25,18 @@ router.get('/history', authenticate, ctrl.getPurchaseHistory);
  */
 router.post('/mock-bypass', authenticate, ctrl.mockBypassPurchase);
 
+/**
+ * @route   POST /api/v1/store/purchase/membership
+ * @desc    Activate or verify monthly/yearly VIP membership
+ * @access  Authenticated User
+ */
+router.post('/membership', authenticate, ctrl.activateMembership);
+
+/**
+ * @route   GET /api/v1/store/purchase/status
+ * @desc    Check current user's VIP membership status
+ * @access  Authenticated User
+ */
+router.get('/status', authenticate, ctrl.checkVipStatus);
+
 module.exports = router;

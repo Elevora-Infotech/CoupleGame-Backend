@@ -2,6 +2,7 @@ const { supabase } = require('../db/supabase');
 const { generateRoomCode } = require('../utils/codeGenerator');
 const { grantFreeCards } = require('./masterDeckService');
 const { createNotification } = require('./notificationService');
+const { checkUserVipStatus } = require('./purchaseService');
 
 // Only two plan types are supported: 7_DAYS (free) and 30_DAYS (paid).
 // 1_YEAR was removed per client decision.
@@ -59,6 +60,17 @@ const createRoom = async (hostId, expiryType = '7_DAYS') => {
         throw err;
     }
 
+    // Gate 30-Day Rooms: User must have an active VIP Membership (₹99)
+    if (expiryType === '30_DAYS') {
+        const vipStatus = await checkUserVipStatus(hostId);
+        if (!vipStatus.is_vip) {
+            const err = new Error('A 30-Day Room requires an active Monthly VIP Membership (₹99). Please upgrade your plan to unlock 30-day rooms.');
+            err.status = 402;
+            err.code = 'PAYMENT_REQUIRED';
+            throw err;
+        }
+    }
+
     // Archive existing rooms for this host
     await supabase
         .from('rooms')
@@ -76,6 +88,7 @@ const createRoom = async (hostId, expiryType = '7_DAYS') => {
             host_id: hostId,
             expiry_type: expiryType,
             expires_at: expiresAt,
+            mode: expiryType === '30_DAYS' ? 'paid' : 'free',
             status: 'WAITING'
         }])
         .select()
@@ -86,6 +99,20 @@ const createRoom = async (hostId, expiryType = '7_DAYS') => {
         err.status = 400;
         throw err;
     }
+
+    // If 30-Day room, link active unlinked subscription to this room
+    if (expiryType === '30_DAYS') {
+        try {
+            await supabase
+                .from('subscriptions')
+                .update({ room_id: data.id })
+                .eq('payer_id', hostId)
+                .is('room_id', null);
+        } catch (linkErr) {
+            console.warn('[RoomService] Could not link subscription to room:', linkErr.message);
+        }
+    }
+
     return await populateRoomNames(data);
 };
 

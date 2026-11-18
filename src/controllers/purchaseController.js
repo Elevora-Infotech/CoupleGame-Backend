@@ -22,4 +22,25 @@ const mockBypassPurchase = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
-module.exports = { verifyPurchase, getPurchaseHistory, mockBypassPurchase };
+const activateMembership = async (req, res, next) => {
+  try {
+    const { planId, productId, paymentSource, transactionId } = req.body;
+    const result = await purchaseService.activateMembershipPurchase({
+      userId: req.user.id,
+      planId: planId || 'monthly',
+      productId: productId || 'soulshuffle_monthly_99',
+      paymentSource: paymentSource || 'google_play',
+      transactionId,
+    });
+    res.status(200).json({ status: 'success', data: result });
+  } catch (error) { next(error); }
+};
+
+const checkVipStatus = async (req, res, next) => {
+  try {
+    const result = await purchaseService.checkUserVipStatus(req.user.id);
+    res.status(200).json({ status: 'success', data: result });
+  } catch (error) { next(error); }
+};
+
+module.exports = { verifyPurchase, getPurchaseHistory, mockBypassPurchase, activateMembership, checkVipStatus };

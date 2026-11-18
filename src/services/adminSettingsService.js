@@ -620,6 +620,146 @@ const getSoftLaunchMetrics = async () => {
   };
 };
 
+const DEFAULT_MEMBERSHIP_PLANS = {
+  monthly: {
+    id: 'monthly',
+    name: 'Monthly VIP Pass',
+    price: '₹99',
+    price_numeric: 99,
+    period: '/ month',
+    badge: 'MOST POPULAR',
+    savings: 'Full 30-Day Room Access & All 700+ Cards',
+    productId: 'soulshuffle_monthly_99',
+    enabled: true,
+  },
+  yearly: {
+    id: 'yearly',
+    name: 'Annual VIP Pass',
+    price: '₹499',
+    price_numeric: 499,
+    period: '/ year',
+    badge: 'BEST VALUE',
+    savings: 'Save 60% — Unlimited Couple Access',
+    productId: 'soulshuffle_pro_annual',
+    enabled: false,
+  },
+};
+
+const DEFAULT_MEMBERSHIP_FEATURES = [
+  {
+    id: 'feat_room_duration',
+    name: 'Intimacy Room Duration',
+    free: '7 Days Only',
+    paid: 'Full 30 Days Active 💖',
+    highlight: true,
+  },
+  {
+    id: 'feat_card_library',
+    name: 'Dare Cards Library',
+    free: 'Starter Pool (40 Cards)',
+    paid: 'Full Catalog (700+ Cards) 🔥',
+    highlight: true,
+  },
+  {
+    id: 'feat_spice_spectrum',
+    name: 'Spice Spectrum',
+    free: 'Level 1 & 2 Only',
+    paid: 'All Levels (Wild & Steamy 🔥)',
+    highlight: true,
+  },
+  {
+    id: 'feat_deflect_shields',
+    name: 'Deflect Shields',
+    free: '1 per week',
+    paid: 'Unlimited / 5 per Game 🛡️',
+    highlight: false,
+  },
+  {
+    id: 'feat_flexible_timers',
+    name: 'Turn Timers & Deadlines',
+    free: 'Fixed 24 Hours',
+    paid: 'Flexible (12h, 24h, 48h, 7d)',
+    highlight: false,
+  },
+  {
+    id: 'feat_streak_protection',
+    name: 'Streak Protection & Moments',
+    free: 'None',
+    paid: 'Never Lose Streaks ✨',
+    highlight: false,
+  },
+  {
+    id: 'feat_vip_support',
+    name: 'Priority Real-Time Sync',
+    free: 'Standard',
+    paid: 'VIP Priority ⚡',
+    highlight: false,
+  },
+];
+
+const getMembershipPlansAndFeatures = async () => {
+  const { data: rows, error } = await supabase
+    .from('game_settings')
+    .select('setting_key, setting_value, updated_at')
+    .in('setting_key', ['membership_plans', 'membership_features']);
+
+  let plans = { ...DEFAULT_MEMBERSHIP_PLANS };
+  let features = [...DEFAULT_MEMBERSHIP_FEATURES];
+  let updatedAt = new Date().toISOString();
+
+  if (rows && rows.length > 0) {
+    rows.forEach((row) => {
+      if (row.setting_key === 'membership_plans' && row.setting_value) {
+        try {
+          const parsed = typeof row.setting_value === 'string' ? JSON.parse(row.setting_value) : row.setting_value;
+          plans = { ...DEFAULT_MEMBERSHIP_PLANS, ...parsed };
+        } catch {}
+      }
+      if (row.setting_key === 'membership_features' && row.setting_value) {
+        try {
+          const parsed = typeof row.setting_value === 'string' ? JSON.parse(row.setting_value) : row.setting_value;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            features = parsed;
+          }
+        } catch {}
+      }
+      if (row.updated_at) updatedAt = row.updated_at;
+    });
+  }
+
+  return {
+    plans,
+    features,
+    updated_at_ist: formatIST(updatedAt),
+  };
+};
+
+const updateMembershipPlansAndFeatures = async ({ plans, features, reason, admin }) => {
+  const safeReason = reason && typeof reason === 'string' && reason.trim().length >= 3
+    ? reason.trim()
+    : 'Admin updated membership plans and features';
+
+  if (plans) {
+    await updateAppControlSetting({
+      key: 'membership_plans',
+      value: plans,
+      reason: safeReason,
+      admin,
+    });
+  }
+
+  if (features) {
+    await updateAppControlSetting({
+      key: 'membership_features',
+      value: features,
+      reason: safeReason,
+      admin,
+    });
+  }
+
+  return getMembershipPlansAndFeatures();
+};
+
 module.exports = {
   getRuntimeSettings,
   updateRuntimeSettings,
@@ -631,6 +771,10 @@ module.exports = {
   getFreeGamePitch,
   updateFreeGamePitch,
   getSoftLaunchMetrics,
+  getMembershipPlansAndFeatures,
+  updateMembershipPlansAndFeatures,
   DEFAULT_GAME_PARAMETERS,
   DEFAULT_PITCH,
+  DEFAULT_MEMBERSHIP_PLANS,
+  DEFAULT_MEMBERSHIP_FEATURES,
 };

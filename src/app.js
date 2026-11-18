@@ -51,6 +51,7 @@ const adminGameRoutes        = require('./routes/adminGameRoutes');
 const notificationRoutes     = require('./routes/notificationRoutes');
 const adminNotificationRoutes = require('./routes/adminNotificationRoutes');
 const telemetryRoutes        = require('./routes/telemetryRoutes');
+const plansRoutes            = require('./routes/plansRoutes');
 const adminAuditRoutes       = require('./routes/adminAuditRoutes');
 const adminOperationsRoutes  = require('./routes/adminOperationsRoutes');
 const adminRevenueRoutes     = require('./routes/adminRevenueRoutes');
@@ -69,6 +70,7 @@ app.use('/api/v1/store',           storeRoutes);
 app.use('/api/v1/user/deck',       deckRoutes);
 app.use('/api/v1/notifications',   notificationRoutes);
 app.use('/api/v1/telemetry',       telemetryRoutes);
+app.use('/api/v1/plans',           plansRoutes);
 
 // Admin Routes (Isolated)
 app.use('/api/v1/admin/auth',   adminAuthRoutes);

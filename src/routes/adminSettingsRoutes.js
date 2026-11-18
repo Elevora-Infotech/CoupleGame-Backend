@@ -35,4 +35,8 @@ router.put('/pitch', requireCategory(ACTION_CATEGORIES.SYSTEM_CONTROLS), ctrl.up
 // ── 5. Soft-Launch Decision Engine & Diagnosis (Part B5 & C10-C11)
 router.get('/soft-launch', requireCategory(ACTION_CATEGORIES.READ_OPERATIONS), ctrl.getSoftLaunchMetrics);
 
+// ── 6. VIP Membership Plans & Features (Dynamic Pricing & Comparison Table)
+router.get('/plans', requireCategory(ACTION_CATEGORIES.READ_OPERATIONS), ctrl.getMembershipPlans);
+router.put('/plans', requireCategory(ACTION_CATEGORIES.SYSTEM_CONTROLS), ctrl.updateMembershipPlans);
+
 module.exports = router;

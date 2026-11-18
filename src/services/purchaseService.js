@@ -362,9 +362,143 @@ const getUserPurchaseHistory = async (userId) => {
 };
 
 
+/**
+ * Activate VIP Membership for a user (Monthly ₹99 or Yearly)
+ * Creates / updates subscription and adds to purchase ledger
+ */
+const activateMembershipPurchase = async ({ userId, planId = 'monthly', productId = 'soulshuffle_monthly_99', paymentSource = 'google_play', transactionId = null }) => {
+  if (!userId) throwError('User ID is required to activate membership', 400);
+
+  const durationDays = planId === 'yearly' ? 365 : 30;
+  const price = planId === 'yearly' ? 499 : 99;
+  const now = new Date();
+  const endsAt = new Date(now.getTime() + durationDays * 24 * 60 * 60 * 1000);
+  const txId = transactionId || `TXN-VIP-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+  // 1. Check for any current active room where user is host or partner
+  const { data: activeRoom } = await supabase
+    .from('rooms')
+    .select('id')
+    .or(`host_id.eq.${userId},partner_id.eq.${userId}`)
+    .in('status', ['WAITING', 'ACTIVE'])
+    .maybeSingle();
+
+  // 2. Insert subscription
+  try {
+    await supabase
+      .from('subscriptions')
+      .insert([{
+        room_id: activeRoom ? activeRoom.id : null,
+        payer_id: userId,
+        store_product_id: productId,
+        payment_source: paymentSource,
+        status: 'active',
+        started_at: now.toISOString(),
+        ends_at: endsAt.toISOString(),
+        current_season: 1,
+        autopay_status: 'active',
+      }]);
+  } catch (subErr) {
+    console.warn('[Membership] Subscription insert warning:', subErr.message);
+  }
+
+  // 3. Record in user_purchases ledger
+  try {
+    await supabase
+      .from('user_purchases')
+      .insert([{
+        user_id: userId,
+        transaction_id: txId,
+        platform: paymentSource === 'google_play' ? 'android' : 'ios',
+        store_product_id: productId,
+        amount_paid: price,
+        currency: 'INR',
+        status: 'completed',
+        purchased_at: now.toISOString(),
+        completed_at: now.toISOString(),
+      }]);
+  } catch (pErr) {
+    console.warn('[Membership] user_purchases insert warning:', pErr.message);
+  }
+
+  // 4. If there's an active room, mark mode = 'paid'
+  if (activeRoom) {
+    await supabase
+      .from('rooms')
+      .update({ mode: 'paid' })
+      .eq('id', activeRoom.id);
+  }
+
+  return {
+    success: true,
+    vip_active: true,
+    plan_id: planId,
+    product_id: productId,
+    duration_days: durationDays,
+    expires_at: endsAt.toISOString(),
+    transaction_id: txId,
+  };
+};
+
+/**
+ * Check if a user currently has an active VIP membership
+ */
+const checkUserVipStatus = async (userId) => {
+  if (!userId) return { is_vip: false };
+
+  const nowIso = new Date().toISOString();
+
+  // 1. Check subscriptions table
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('id, ends_at, status, store_product_id')
+    .eq('payer_id', userId)
+    .eq('status', 'active')
+    .gt('ends_at', nowIso)
+    .order('ends_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (sub) {
+    return {
+      is_vip: true,
+      subscription_id: sub.id,
+      expires_at: sub.ends_at,
+      product_id: sub.store_product_id,
+    };
+  }
+
+  // 2. Check recent completed user_purchases (within last 30 days)
+  const { data: purchase } = await supabase
+    .from('user_purchases')
+    .select('id, purchased_at, store_product_id')
+    .eq('user_id', userId)
+    .eq('status', 'completed')
+    .order('purchased_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (purchase && purchase.purchased_at) {
+    const purchaseDate = new Date(purchase.purchased_at);
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    if (purchaseDate > thirtyDaysAgo) {
+      return {
+        is_vip: true,
+        purchase_id: purchase.id,
+        expires_at: new Date(purchaseDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        product_id: purchase.store_product_id,
+      };
+    }
+  }
+
+  return { is_vip: false };
+};
+
 module.exports = {
   selectCardsForUser,
   processWebhookPurchase,
   getUserPurchaseHistory,
   mockBypassPurchase,
+  activateMembershipPurchase,
+  checkUserVipStatus,
 };
