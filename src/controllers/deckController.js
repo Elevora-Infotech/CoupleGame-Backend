@@ -67,7 +67,7 @@ const sendCard = async (req, res, next) => {
       req.user.id, req.params.deckCardId, room_id, receiver_id, message
     );
 
-    // Notify receiver in real-time
+    // Notify receiver in real-time across room channel AND personal user channel
     emit(room_id, 'card_received', {
       send_id:     sendRecord.id,
       sender_id:   req.user.id,
@@ -84,6 +84,19 @@ const sendCard = async (req, res, next) => {
       sent_at:          sendRecord.sent_at,
       respond_deadline: sendRecord.respond_deadline,
     });
+
+    // Also emit directly to receiver's personal user socket channel
+    if (sendRecord.receiver_id) {
+      try {
+        getIo().to(`user:${sendRecord.receiver_id}`).emit('card_received', {
+          send_id:     sendRecord.id,
+          sender_id:   req.user.id,
+          receiver_id: sendRecord.receiver_id,
+          room_id,
+          card_name:   sendRecord.cards?.name,
+        });
+      } catch (err) {}
+    }
 
     res.status(200).json({ status: 'success', message: 'Card sent to partner!', data: { send: sendRecord } });
   } catch (e) { next(e); }
