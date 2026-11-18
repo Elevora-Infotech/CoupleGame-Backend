@@ -270,16 +270,32 @@ const softDeleteCard = async (id) => {
 };
 
 /**
- * Admin: Get all card categories (lightweight list)
+ * Admin: Get all card categories with dynamic real-time card counts
  */
 const getAllCategories = async () => {
-  const { data, error } = await supabase
-    .from('card_categories')
-    .select('id, name, description, theme_color, icon_url, order_index, is_active, created_at')
-    .order('order_index', { ascending: true });
+  const [catRes, countRes] = await Promise.all([
+    supabase
+      .from('card_categories')
+      .select('id, name, description, theme_color, icon_url, order_index, is_active, created_at')
+      .order('order_index', { ascending: true }),
+    supabase
+      .from('cards')
+      .select('category_id')
+  ]);
 
-  if (error) throw error;
-  return data;
+  if (catRes.error) throw catRes.error;
+
+  const countMap = {};
+  (countRes.data || []).forEach(c => {
+    if (c.category_id) {
+      countMap[c.category_id] = (countMap[c.category_id] || 0) + 1;
+    }
+  });
+
+  return (catRes.data || []).map(cat => ({
+    ...cat,
+    card_count: countMap[cat.id] || 0,
+  }));
 };
 
 /**

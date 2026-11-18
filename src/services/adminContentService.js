@@ -436,15 +436,28 @@ const deleteCard = async ({ cardId, admin }) => {
 // 6. CARD CATEGORIES MANAGEMENT
 // ─────────────────────────────────────────────────────────────
 const getCategories = async () => {
-  const { data, error } = await supabase
-    .from('card_categories')
-    .select('*')
-    .order('order_index', { ascending: true });
+  const [catRes, countRes] = await Promise.all([
+    supabase
+      .from('card_categories')
+      .select('*')
+      .order('order_index', { ascending: true }),
+    supabase
+      .from('cards')
+      .select('category_id')
+  ]);
 
-  if (error) throwError(error.message, 400);
+  if (catRes.error) throwError(catRes.error.message, 400);
 
-  return (data || []).map(cat => ({
+  const countMap = {};
+  (countRes.data || []).forEach(c => {
+    if (c.category_id) {
+      countMap[c.category_id] = (countMap[c.category_id] || 0) + 1;
+    }
+  });
+
+  return (catRes.data || []).map(cat => ({
     ...cat,
+    card_count: countMap[cat.id] || 0,
     created_at_ist: formatIST(cat.created_at),
     updated_at_ist: formatIST(cat.updated_at),
   }));
