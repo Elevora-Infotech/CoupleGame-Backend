@@ -216,23 +216,34 @@ const createBulkCards = async ({ cards = [], admin, defaultCategoryId }) => {
     catMap[c.id] = c.id;
   });
 
+  const resolveCategoryId = (val) => {
+    if (!val) return null;
+    const str = String(val).trim().toLowerCase();
+    if (catMap[str]) return catMap[str];
+    for (const c of (allCategories || [])) {
+      const cLower = c.name.toLowerCase();
+      if (cLower === str || cLower.includes(str) || str.includes(cLower)) {
+        return c.id;
+      }
+    }
+    return null;
+  };
+
   const rowsToInsert = [];
   for (const card of cards) {
     const rawName = card.name || card.title || card.card_name || card.CardName || '';
     const rawPrompt = card.prompt || card.power_description || card.description || card.dare || card.action || card.Prompt || '';
-    let catId = card.category_id || card.categoryId || defaultCategoryId;
     
-    // Check if category provided as string name (e.g. "Romance")
-    const catName = (card.category || card.category_name || card.Category || '').trim().toLowerCase();
-    if (catName && catMap[catName]) {
-      catId = catMap[catName];
-    }
+    // Resolve each card's distinct category from its own row
+    const catId = resolveCategoryId(card.category_id || card.categoryId)
+               || resolveCategoryId(card.category || card.category_name || card.Category)
+               || defaultCategoryId;
 
-    if (rawName.trim() && rawPrompt.trim() && (catId || defaultCategoryId)) {
+    if (rawName.trim() && rawPrompt.trim() && catId) {
       rowsToInsert.push({
         name: rawName.trim(),
         power_description: rawPrompt.trim(),
-        category_id: catId || defaultCategoryId,
+        category_id: catId,
         card_type: card.card_type || 'ACTION',
         attributes: { version: 1 },
         is_active: true,
@@ -262,7 +273,7 @@ const createBulkCards = async ({ cards = [], admin, defaultCategoryId }) => {
         actionType: 'BULK_IMPORT_CARDS',
         targetEntity: 'cards',
         targetId: 'bulk_import',
-        reason: `Bulk imported ${inserted.length} cards via CSV`,
+        reason: `Bulk imported ${inserted.length} cards across categories via CSV`,
       });
     } catch (e) {}
   }
