@@ -230,7 +230,7 @@ const joinRoom = async (partnerId, code) => {
     }
 
     // 9. Automatically grant free cards for BOTH users based on plan type:
-    //    7_DAYS  → 7 regular cards from 7-day master deck (no deflect)
+    //    7_DAYS  → 7 regular cards from 7-day master deck + 1 deflect card
     //    30_DAYS → 30 regular cards from 30-day master deck + 5 deflect cards
     await Promise.allSettled([
         grantFreeCards(room.host_id, updatedRoom.id, room.expiry_type),

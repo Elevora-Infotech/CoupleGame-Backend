@@ -62,4 +62,9 @@ router.patch('/intelligence/feedback/:id', adminProtect, adminController.updateF
 router.get('/intelligence/card-versions', adminProtect, adminController.getCardVersionHistory);
 router.get('/intelligence/insights', adminProtect, adminController.getInsightDashboard);
 
+// Section 5: Team & Employee Management
+router.get('/team', adminProtect, adminController.getTeamMembers);
+router.post('/team', adminProtect, adminController.createTeamMember);
+router.delete('/team/:id', adminProtect, adminController.deleteTeamMember);
+
 module.exports = router;

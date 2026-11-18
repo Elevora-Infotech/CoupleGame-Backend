@@ -33,10 +33,10 @@ const ALLOWS_IN_PROGRESS = ['CANCEL_IN_PROGRESS'];
 
 
 // ─────────────────────────────────────────────────────────────
-// Grant 5 Random Deflect Cards to a User for a Room
-// Only called for 30-day rooms (roomService handles the condition).
+// Grant Deflect Cards to a User for a Room
+// 30_DAYS gets 5 cards, 7_DAYS gets 1 card
 // ─────────────────────────────────────────────────────────────
-const grantDeflectCards = async (userId, roomId) => {
+const grantDeflectCards = async (userId, roomId, count = 5) => {
   const { data: allDeflectCards, error: fetchErr } = await supabase
     .from('cards')
     .select('id')
@@ -48,9 +48,9 @@ const grantDeflectCards = async (userId, roomId) => {
     return;
   }
 
-  // Fisher-Yates shuffle → take 5
+  // Fisher-Yates shuffle → take requested count
   const shuffled = [...allDeflectCards].sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, 5);
+  const selected = shuffled.slice(0, count);
 
   const deckRows = selected.map(card => ({
     user_id:  userId,

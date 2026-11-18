@@ -1,4 +1,5 @@
 const { supabase } = require('../db/supabase');
+const bcrypt = require('bcryptjs');
 
 /**
  * Get overall system stats for the dashboard
@@ -595,6 +596,69 @@ const getInsightDashboard = async () => {
   };
 };
 
+const getTeamMembers = async () => {
+  const { data, error } = await supabase
+    .from('admins')
+    .select('id, name, email, role, last_login, created_at')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+};
+
+const createTeamMember = async ({ name, email, password, role }) => {
+  if (!name || !email || !password) {
+    const err = new Error('Name, email, and password are required.');
+    err.status = 400;
+    throw err;
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  const validRole = ['super_admin', 'admin', 'support'].includes(role) ? role : 'support';
+
+  const { data: existing } = await supabase
+    .from('admins')
+    .select('id')
+    .eq('email', cleanEmail)
+    .single();
+
+  if (existing) {
+    const err = new Error('An administrator or employee with this email already exists.');
+    err.status = 400;
+    throw err;
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  const password_hash = await bcrypt.hash(password, salt);
+
+  const { data, error } = await supabase
+    .from('admins')
+    .insert([
+      {
+        name: name.trim(),
+        email: cleanEmail,
+        password_hash,
+        role: validRole,
+        created_at: new Date().toISOString(),
+      }
+    ])
+    .select('id, name, email, role, created_at')
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+const deleteTeamMember = async (adminId) => {
+  const { error } = await supabase
+    .from('admins')
+    .delete()
+    .eq('id', adminId);
+
+  if (error) throw error;
+  return { success: true };
+};
+
 module.exports = {
   getStats,
   createQuestion,
@@ -628,4 +692,7 @@ module.exports = {
   submitFeedback,
   getCardVersionHistory,
   getInsightDashboard,
+  getTeamMembers,
+  createTeamMember,
+  deleteTeamMember,
 };

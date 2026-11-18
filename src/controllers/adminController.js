@@ -242,6 +242,35 @@ const getInsightDashboard = async (req, res, next) => {
   try { res.status(200).json({ status: 'success', data: await adminService.getInsightDashboard() }); } catch (e) { next(e); }
 };
 
+const getTeamMembers = async (req, res, next) => {
+  try {
+    const team = await adminService.getTeamMembers();
+    res.status(200).json({ status: 'success', data: { team } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const createTeamMember = async (req, res, next) => {
+  try {
+    const { name, email, password, role } = req.body;
+    const member = await adminService.createTeamMember({ name, email, password, role });
+    res.status(201).json({ status: 'success', message: 'Employee account created successfully.', data: { member } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteTeamMember = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    await adminService.deleteTeamMember(id);
+    res.status(200).json({ status: 'success', message: 'Team member removed.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getDashboardStats,
   createNewQuestion,
@@ -274,4 +303,7 @@ module.exports = {
   updateFeedbackStatus,
   getCardVersionHistory,
   getInsightDashboard,
+  getTeamMembers,
+  createTeamMember,
+  deleteTeamMember,
 };

@@ -200,9 +200,11 @@ const grantFreeCards = async (userId, roomId, planType) => {
 
   console.log(`[MasterDeck] Granted ${cardIds.length} free cards (${planType}) to user ${userId} in room ${roomId}`);
 
-  // 30-day rooms also get 5 deflect cards (separate flow)
+  // Deflect cards: 5 for 30-day rooms, 1 for 7-day rooms
   if (planType === '30_DAYS') {
-    await grantDeflectCards(userId, roomId);
+    await grantDeflectCards(userId, roomId, 5);
+  } else if (planType === '7_DAYS') {
+    await grantDeflectCards(userId, roomId, 1);
   }
 };
 
