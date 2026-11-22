@@ -441,6 +441,56 @@ const leaveRoom = async (userId, roomId) => {
         throw err;
     }
 
+    // If 30-Day VIP room, permanently consume and cancel the VIP pass for both participants
+    if (room.expiry_type === '30_DAYS') {
+        try {
+            // 1. Cancel subscription records linked to room or payer
+            await supabase
+                .from('subscriptions')
+                .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+                .or(`room_id.eq.${roomId},payer_id.eq.${room.host_id}`);
+
+            // 2. Mark completed VIP purchases as consumed
+            await supabase
+                .from('user_purchases')
+                .update({ status: 'consumed' })
+                .eq('user_id', room.host_id)
+                .in('store_product_id', ['soulshuffle_monthly_99', 'soulshuffle_pro_monthly', 'soulshuffle_pro_annual'])
+                .eq('status', 'completed');
+
+            // 3. Clear VIP status from profile preferences for host and partner
+            const clearVipProfile = async (targetId) => {
+                if (!targetId) return;
+                try {
+                    const { data: prof } = await supabase
+                        .from('profiles')
+                        .select('preferences')
+                        .eq('id', targetId)
+                        .maybeSingle();
+
+                    if (prof && prof.preferences) {
+                        const updated = {
+                            ...prof.preferences,
+                            is_vip: false,
+                            vip_active: false,
+                            vip_expires_at: null,
+                            last_consumed_room_id: roomId,
+                        };
+                        await supabase
+                            .from('profiles')
+                            .update({ preferences: updated })
+                            .eq('id', targetId);
+                    }
+                } catch (_) {}
+            };
+
+            await clearVipProfile(room.host_id);
+            await clearVipProfile(room.partner_id);
+        } catch (vipCancelErr) {
+            console.warn('[leaveRoom] VIP termination notice:', vipCancelErr.message);
+        }
+    }
+
     // Expire pending cards and unused deck cards
     await supabase
         .from('room_card_sends')
