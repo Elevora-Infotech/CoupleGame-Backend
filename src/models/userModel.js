@@ -1,10 +1,11 @@
 const { supabase } = require('../db/supabase');
 
 const findUserByEmail = async (email) => {
+  const cleanEmail = (email || '').trim().toLowerCase();
   const { data, error } = await supabase
     .from('users')
     .select('*')
-    .eq('email', email)
+    .ilike('email', cleanEmail)
     .single();
 
   if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned

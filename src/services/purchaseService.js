@@ -383,7 +383,34 @@ const activateMembershipPurchase = async ({ userId, planId = 'monthly', productI
     .in('status', ['WAITING', 'ACTIVE'])
     .maybeSingle();
 
-  // 2. Insert subscription
+  // 2. Persist VIP membership directly on user profile preferences (guaranteed, room-agnostic)
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('preferences')
+      .eq('id', userId)
+      .maybeSingle();
+
+    const existingPrefs = (profile && profile.preferences) ? profile.preferences : {};
+    const updatedPrefs = {
+      ...existingPrefs,
+      is_vip: true,
+      vip_active: true,
+      vip_expires_at: endsAt.toISOString(),
+      vip_product_id: productId,
+      vip_plan_id: planId,
+      vip_updated_at: now.toISOString(),
+    };
+
+    await supabase
+      .from('profiles')
+      .update({ preferences: updatedPrefs })
+      .eq('id', userId);
+  } catch (profErr) {
+    console.warn('[Membership] Profile preferences update warning:', profErr.message);
+  }
+
+  // 3. Insert subscription (if active room exists, or if schema permits)
   try {
     await supabase
       .from('subscriptions')
@@ -402,7 +429,7 @@ const activateMembershipPurchase = async ({ userId, planId = 'monthly', productI
     console.warn('[Membership] Subscription insert warning:', subErr.message);
   }
 
-  // 3. Record in user_purchases ledger
+  // 4. Record in user_purchases ledger
   try {
     await supabase
       .from('user_purchases')
@@ -421,7 +448,7 @@ const activateMembershipPurchase = async ({ userId, planId = 'monthly', productI
     console.warn('[Membership] user_purchases insert warning:', pErr.message);
   }
 
-  // 4. If there's an active room, mark mode = 'paid'
+  // 5. If there's an active room, mark mode = 'paid'
   if (activeRoom) {
     await supabase
       .from('rooms')
@@ -448,7 +475,29 @@ const checkUserVipStatus = async (userId) => {
 
   const nowIso = new Date().toISOString();
 
-  // 1. Check subscriptions table
+  // 1. Check user profile preferences (instant, room-agnostic check)
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('preferences')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profile?.preferences?.is_vip && profile?.preferences?.vip_expires_at) {
+      const expDate = new Date(profile.preferences.vip_expires_at);
+      if (expDate > new Date()) {
+        return {
+          is_vip: true,
+          expires_at: profile.preferences.vip_expires_at,
+          product_id: profile.preferences.vip_product_id || 'soulshuffle_monthly_99',
+        };
+      }
+    }
+  } catch (profCheckErr) {
+    console.warn('[Membership] Profile VIP check notice:', profCheckErr.message);
+  }
+
+  // 2. Check subscriptions table
   const { data: sub } = await supabase
     .from('subscriptions')
     .select('id, ends_at, status, store_product_id')
