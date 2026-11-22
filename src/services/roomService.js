@@ -100,7 +100,7 @@ const createRoom = async (hostId, expiryType = '7_DAYS') => {
         throw err;
     }
 
-    // If 30-Day room, link active unlinked subscription to this room
+    // If 30-Day room, link active unlinked subscription to this room and consume pass
     if (expiryType === '30_DAYS') {
         try {
             await supabase
@@ -110,6 +110,31 @@ const createRoom = async (hostId, expiryType = '7_DAYS') => {
                 .is('room_id', null);
         } catch (linkErr) {
             console.warn('[RoomService] Could not link subscription to room:', linkErr.message);
+        }
+
+        // Consume the VIP pass so 1 purchase = 1 30-day room. Recreating requires fresh payment.
+        try {
+            const { data: prof } = await supabase
+                .from('profiles')
+                .select('preferences')
+                .eq('id', hostId)
+                .maybeSingle();
+
+            if (prof && prof.preferences) {
+                const updated = {
+                    ...prof.preferences,
+                    is_vip: false,
+                    vip_active: false,
+                    vip_expires_at: null,
+                    last_30_day_room_id: data.id,
+                };
+                await supabase
+                    .from('profiles')
+                    .update({ preferences: updated })
+                    .eq('id', hostId);
+            }
+        } catch (consumeErr) {
+            console.warn('[RoomService] Could not consume VIP pass:', consumeErr.message);
         }
     }
 
