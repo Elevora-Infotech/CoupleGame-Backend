@@ -38,15 +38,21 @@ const sendResetOtpEmail = async (toEmail, otp) => {
   }
 
   const mailOptions = {
-    from: `"EleVora Support" <${env.SMTP_FROM || env.SMTP_USER}>`,
+    from: `"SoulShuffle Support" <${env.SMTP_FROM || env.SMTP_USER}>`,
     to: toEmail,
-    subject: 'Your EleVora Password Reset Code',
-    text: `Your password reset code is: ${otp}. This code is valid for 1 hour.`,
+    subject: 'Your SoulShuffle Password Reset Code',
+    text: `Your SoulShuffle password reset code is: ${otp}. This code is valid for 1 hour.`,
     html: `
-      <h2>Password Reset Request</h2>
-      <p>Someone requested a password reset for your EleVora account. Your 6-digit OTP code is:</p>
-      <h1 style="letter-spacing: 5px; color: #4F46E5;">${otp}</h1>
-      <p>This code will expire in exactly 1 hour. If you did not request this, please safely ignore this email.</p>
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #fce7f3; border-radius: 16px; background-color: #ffffff;">
+        <h2 style="color: #FF296D; margin-top: 0;">SoulShuffle Password Reset</h2>
+        <p style="color: #475569; font-size: 14px;">Someone requested a password reset for your SoulShuffle account. Your 6-digit recovery OTP code is:</p>
+        <div style="text-align: center; margin: 24px 0;">
+          <span style="display: inline-block; letter-spacing: 8px; font-size: 32px; font-weight: 900; color: #FF296D; background-color: #fff1f2; padding: 12px 24px; border-radius: 12px; border: 1px dashed #f43f5e;">${otp}</span>
+        </div>
+        <p style="color: #64748b; font-size: 12px;">This code will expire in exactly 1 hour. If you did not request this reset, you can safely ignore this email.</p>
+        <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 20px 0;" />
+        <p style="color: #94a3b8; font-size: 11px; text-align: center;">© SoulShuffle • Keep the spark alive</p>
+      </div>
     `
   };
 

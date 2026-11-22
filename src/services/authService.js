@@ -40,11 +40,25 @@ const signup = async ({ name, email, password }) => {
   // Save refresh token in DB
   await userModel.updateUser(newUser.id, { refresh_token: refreshToken });
 
+  // Automatically create user profile with default 3D animated avatar
+  const firstName = (name || '').trim().split(' ')[0] || 'User';
+  const defaultAvatar = 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Rabbit%20face/3D/rabbit_face_3d.png';
+
+  const { data: newProfile } = await supabase
+    .from('profiles')
+    .insert([{
+      id: newUser.id,
+      first_name: firstName,
+      avatar_url: defaultAvatar
+    }])
+    .select('id, first_name, last_name, avatar_url')
+    .single();
+
   // Remove sensitive fields before returning
   delete newUser.password_hash;
   delete newUser.refresh_token;
 
-  return { user: newUser, accessToken, refreshToken };
+  return { user: newUser, profile: newProfile || null, accessToken, refreshToken };
 };
 
 /**
