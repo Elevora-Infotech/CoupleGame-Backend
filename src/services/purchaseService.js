@@ -517,12 +517,20 @@ const checkUserVipStatus = async (userId) => {
     };
   }
 
-  // 2. Check recent completed user_purchases (within last 30 days)
+  // 3. Check recent completed user_purchases strictly for VIP / Membership products
+  const VIP_PRODUCT_IDS = [
+    'soulshuffle_monthly_99',
+    'soulshuffle_pro_monthly',
+    'soulshuffle_pro_annual',
+    'soulshuffle_vip_monthly',
+  ];
+
   const { data: purchase } = await supabase
     .from('user_purchases')
     .select('id, purchased_at, store_product_id')
     .eq('user_id', userId)
     .eq('status', 'completed')
+    .in('store_product_id', VIP_PRODUCT_IDS)
     .order('purchased_at', { ascending: false })
     .limit(1)
     .maybeSingle();
