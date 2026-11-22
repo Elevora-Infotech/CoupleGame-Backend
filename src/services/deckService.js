@@ -88,15 +88,26 @@ const getAvailableCards = async (userId, roomId) => {
     return card;
   });
 
-  const { data: cats } = await supabase.from('card_categories').select('name, icon_url');
-  if (cats) {
-    modifiedData.forEach(d => {
+  const [catsRes, bundlesRes] = await Promise.all([
+    supabase.from('card_categories').select('name, icon_url'),
+    supabase.from('bundles').select('id, name, image_url')
+  ]);
+  const cats = catsRes?.data;
+  const bundleMap = new Map((bundlesRes?.data || []).map(b => [b.id, b]));
+
+  modifiedData.forEach(d => {
+    if (cats) {
       const match = cats.find(c => c.name === d.category_name);
       if (match && match.icon_url) {
         d.category_image = match.icon_url;
       }
-    });
-  }
+    }
+    if (d.bundle_id && bundleMap.has(d.bundle_id)) {
+      const b = bundleMap.get(d.bundle_id);
+      d.bundle_name = b.name;
+      d.bundle_image = b.image_url;
+    }
+  });
 
   return modifiedData;
 };
@@ -105,13 +116,32 @@ const getAvailableCards = async (userId, roomId) => {
 // Play a Card in a Room (mark as used, no send)
 // ─────────────────────────────────────────────────────────────
 const playCard = async (userId, deckCardId, roomId) => {
-  const { data: card, error: fetchErr } = await supabase
+  let { data: card, error: fetchErr } = await supabase
     .from('user_card_deck')
     .select('id, user_id, is_used, expired')
     .eq('id', deckCardId)
-    .single();
+    .maybeSingle();
 
-  if (fetchErr || !card) throwError('Card not found in your deck.', 404);
+  // Fallback: If deckCardId passed was the master card_id instead of user_card_deck.id
+  if (!card) {
+    const { data: fallbackCard } = await supabase
+      .from('user_card_deck')
+      .select('id, user_id, is_used, expired')
+      .eq('card_id', deckCardId)
+      .eq('user_id', userId)
+      .eq('is_used', false)
+      .eq('expired', false)
+      .order('acquired_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (fallbackCard) {
+      card = fallbackCard;
+      deckCardId = fallbackCard.id;
+    }
+  }
+
+  if (!card) throwError('Card not found in your deck.', 404);
   if (card.user_id !== userId) throwError('This card does not belong to you.', 403);
   if (card.is_used)            throwError('This card has already been played.', 409);
   if (card.expired)            throwError('This card has expired.', 410);
@@ -238,7 +268,7 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
       .from('user_card_deck')
       .select('id, user_id, card_id, is_used, expired, room_id')
       .eq('id', deckCardId)
-      .single(),
+      .maybeSingle(),
     supabase
       .from('rooms')
       .select('host_id, partner_id, status')
@@ -265,8 +295,27 @@ const sendCard = async (senderId, deckCardId, roomId, receiverId, message) => {
   }
 
   // Validate deck card
-  const { data: card, error: fetchErr } = cardRes;
-  if (fetchErr || !card) throwError('Card not found in your deck.', 404);
+  let card = cardRes?.data;
+  if (!card) {
+    // Fallback: If deckCardId passed was the master card_id instead of user_card_deck.id
+    const { data: fallbackCard } = await supabase
+      .from('user_card_deck')
+      .select('id, user_id, card_id, is_used, expired, room_id')
+      .eq('card_id', deckCardId)
+      .eq('user_id', senderId)
+      .eq('is_used', false)
+      .eq('expired', false)
+      .order('acquired_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (fallbackCard) {
+      card = fallbackCard;
+      deckCardId = fallbackCard.id;
+    }
+  }
+
+  if (!card) throwError('Card not found in your deck.', 404);
   if (card.user_id !== senderId) throwError('This card does not belong to you.', 403);
   if (card.is_used)              throwError('This card has already been used or sent.', 409);
   if (card.expired)              throwError('This card has expired.', 410);
