@@ -98,7 +98,14 @@ const sendCard = async (req, res, next) => {
       } catch (err) {}
     }
 
-    res.status(200).json({ status: 'success', message: 'Card sent to partner!', data: { send: sendRecord } });
+    res.status(200).json({ 
+      status: 'success', 
+      message: 'Card sent to partner!', 
+      data: { 
+        ...sendRecord,
+        send: sendRecord 
+      } 
+    });
   } catch (e) { next(e); }
 };
 
