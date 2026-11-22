@@ -39,6 +39,7 @@ router.patch('/:id/read', ctrl.markAsRead);
  */
 router.post('/register-push-token', ctrl.registerPushToken);
 router.post('/unregister-push-token', ctrl.unregisterPushToken);
+router.post('/send-test', ctrl.sendTestNotification);
 
 /**
  * DELETE /api/v1/notifications/:id

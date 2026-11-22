@@ -70,11 +70,29 @@ const unregisterPushToken = async (req, res, next) => {
   }
 };
 
-module.exports = { unregisterPushToken,
+const sendTestNotification = async (req, res, next) => {
+  try {
+    const { title = 'SoulShuffle Alert 💖', body = 'Your notifications are working perfectly!' } = req.body || {};
+    const notif = await notifSvc.createNotification(
+      req.user.id,
+      'TEST_NOTIFICATION',
+      title,
+      body,
+      { test: true, timestamp: new Date().toISOString() }
+    );
+    res.status(200).json({ status: 'success', message: 'Test notification sent', data: notif });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = {
+  unregisterPushToken,
   getNotifications,
   getUnreadCount,
   markAsRead,
   markAllAsRead,
   deleteNotification,
   registerPushToken,
+  sendTestNotification,
 };
