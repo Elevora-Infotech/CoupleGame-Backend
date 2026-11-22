@@ -134,19 +134,24 @@ const processWebhookPurchase = async (webhookBody) => {
 
   const normalizedPlatform = platform === 'APPLE_STORE' ? 'ios' : 'android';
 
-  // ── OPTION B: Room-Only Economy ───────────────────────────
-  // User MUST be inside an ACTIVE room at the time of purchase.
-  // Cards are immediately stamped with that room_id and will
-  // all be destroyed (played or not) when the room ends.
+  // ── Room-Only Economy ─────────────────────────────────────
+  // User MUST be inside an ACTIVE 30-DAY room at the time of purchase.
+  // 7-day free rooms CANNOT purchase bundles.
+  // Room must also have partner connected (ACTIVE status with partner_id).
   const { data: activeRoom, error: roomErr } = await supabase
     .from('rooms')
-    .select('id')
+    .select('id, expiry_type, status, partner_id')
     .or(`host_id.eq.${userId},partner_id.eq.${userId}`)
     .eq('status', 'ACTIVE')
+    .not('partner_id', 'is', null)
     .maybeSingle();
 
   if (roomErr || !activeRoom) {
-    throwError('You must be inside an active game room to purchase cards.', 403);
+    throwError('You must be inside an active couple room with your partner to purchase cards.', 403);
+  }
+
+  if (activeRoom.expiry_type !== '30_DAYS') {
+    throwError('Card bundles are exclusive to 30-Day VIP Rooms. Please upgrade to a 30-day room with your partner.', 403);
   }
   const activeRoomId = activeRoom.id;
 
@@ -239,16 +244,21 @@ const processWebhookPurchase = async (webhookBody) => {
 // Mock Bypass Purchase (for development / before RevenueCat)
 // ─────────────────────────────────────────────────────────────
 const mockBypassPurchase = async (userId, bundleId, planId) => {
-  // Same logic as processWebhookPurchase but simplified for bypassing
+  // User MUST be inside an ACTIVE 30-DAY room at the time of purchase.
   const { data: activeRoom, error: roomErr } = await supabase
     .from('rooms')
-    .select('id')
+    .select('id, expiry_type, status, partner_id')
     .or(`host_id.eq.${userId},partner_id.eq.${userId}`)
     .eq('status', 'ACTIVE')
+    .not('partner_id', 'is', null)
     .maybeSingle();
 
   if (roomErr || !activeRoom) {
-    throwError('You must be inside an active game room to purchase cards.', 403);
+    throwError('You must be inside an active couple room with your partner to purchase cards.', 403);
+  }
+
+  if (activeRoom.expiry_type !== '30_DAYS') {
+    throwError('Card bundles are exclusive to 30-Day VIP Rooms. Please upgrade to a 30-day room with your partner.', 403);
   }
   const activeRoomId = activeRoom.id;
 
