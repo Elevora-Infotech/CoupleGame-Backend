@@ -42,7 +42,7 @@ const signup = async ({ name, email, password }) => {
 
   // Automatically create user profile with default 3D animated avatar
   const firstName = (name || '').trim().split(' ')[0] || 'User';
-  const defaultAvatar = 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Rabbit%20face/3D/rabbit_face_3d.png';
+  const defaultAvatar = 'https://cdn.statically.io/gh/microsoft/fluentui-emoji/main/assets/Rabbit%20face/3D/rabbit_face_3d.png';
 
   const { data: newProfile } = await supabase
     .from('profiles')
