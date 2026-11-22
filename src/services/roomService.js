@@ -49,6 +49,23 @@ const populateRoomNames = async (room) => {
         room.host_avatar = null;
         room.partner_avatar = null;
     }
+
+    // Query extra bundle cards allocated to this room
+    try {
+        const { count: bundleCardsCount } = await supabase
+            .from('user_card_deck')
+            .select('id', { count: 'exact', head: true })
+            .eq('room_id', room.id)
+            .not('bundle_id', 'is', null);
+
+        room.extra_cards = bundleCardsCount || 0;
+    } catch (e) {
+        room.extra_cards = 0;
+    }
+
+    const baseDays = room.expiry_type === '7_DAYS' ? 7 : 30;
+    room.total_target_cards = baseDays + (room.extra_cards || 0);
+
     return room;
 };
 
