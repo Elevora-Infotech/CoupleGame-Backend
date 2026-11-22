@@ -65,7 +65,24 @@ const getCatalog = async () => {
   return data;
 };
 
+const getCategories = async () => {
+  const { data, error } = await supabase
+    .from('card_categories')
+    .select('id, name, description, theme_color, icon_url, order_index')
+    .eq('is_active', true)
+    .order('order_index', { ascending: true });
+
+  if (error) {
+    const err = new Error(error.message);
+    err.status = 500;
+    throw err;
+  }
+
+  return data;
+};
+
 module.exports = {
   getCatalog,
-  getAllCards
+  getAllCards,
+  getCategories,
 };

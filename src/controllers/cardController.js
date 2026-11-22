@@ -29,7 +29,20 @@ const getCatalog = async (req, res, next) => {
   }
 };
 
+const getCategories = async (req, res, next) => {
+  try {
+    const categories = await cardService.getCategories();
+    res.status(200).json({
+      status: 'success',
+      data: { categories }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getCatalog,
-  getAllCards
+  getAllCards,
+  getCategories,
 };

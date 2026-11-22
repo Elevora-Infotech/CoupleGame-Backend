@@ -28,7 +28,7 @@ const getProfile = async (userId) => {
         .eq('id', userId)
         .single();
       
-      const defaultAvatar = 'https://cdn.statically.io/gh/microsoft/fluentui-emoji/main/assets/Rabbit%20face/3D/rabbit_face_3d.png';
+      const defaultAvatar = 'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Rabbit%20face/3D/rabbit_face_3d.png';
       const { data: newProfile, error: createError } = await supabase
         .from('profiles')
         .insert([{ 
