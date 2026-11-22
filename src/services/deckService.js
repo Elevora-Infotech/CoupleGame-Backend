@@ -90,7 +90,7 @@ const getAvailableCards = async (userId, roomId) => {
 
   const [catsRes, bundlesRes] = await Promise.all([
     supabase.from('card_categories').select('name, icon_url'),
-    supabase.from('bundles').select('id, name, image_url')
+    supabase.from('bundles').select('id, name, cover_image_url')
   ]);
   const cats = catsRes?.data;
   const bundleMap = new Map((bundlesRes?.data || []).map(b => [b.id, b]));
@@ -105,7 +105,7 @@ const getAvailableCards = async (userId, roomId) => {
     if (d.bundle_id && bundleMap.has(d.bundle_id)) {
       const b = bundleMap.get(d.bundle_id);
       d.bundle_name = b.name;
-      d.bundle_image = b.image_url;
+      d.bundle_image = b.cover_image_url;
     }
   });
 
